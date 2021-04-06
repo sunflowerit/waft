@@ -18,8 +18,8 @@ $SFOIL_PATH/bin/sfoil-check-requirements
 $SFOIL_PATH/bin/sfoil-create-venv $WAFT_PYTHON_VERSION $WAFT_VENV_PATH
 
 # Install SFOIL
+. $WAFT_VENV_PATH/bin/activate
 pip install -e $SFOIL_PATH
 
 # Resume with SFOIL-specific bootstrapping
-. $WAFT_VENV_PATH/bin/activate
 . sfoil-bootstrap

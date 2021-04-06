@@ -1,0 +1,127 @@
+---
+
+odoo/addons:
+    - "*"
+
+odoo/odoo/addons:
+    - "*"
+
+OCA/account-financial-reporting:
+    - "*"
+
+OCA/account-financial-tools:
+    - "*"
+
+OCA/bank-payment:
+    - "*"
+
+OCA/bank-statement-import:
+    - "*"
+
+OCA/community-data-files:
+    - account_tax_unece
+    - base_unece
+    - product_uom_unece
+
+OCA/connector:
+    - "*"
+
+OCA/crm:
+    - "*"
+
+OCA/delivery-carrier:
+    - "*"
+
+OCA/edi:
+    - account_e-invoice_generate
+    - account_invoice_ubl
+    - base_ubl
+    - base_ubl_payment
+
+OCA/manufacture:
+    - mrp_production_putaway_strategy
+    - mrp_bom_line_replace_product
+
+OCA/product-attribute:
+    - product_dimension
+
+OCA/queue:
+    - "*"
+
+OCA/multi-company:
+    - "*"
+
+OCA/purchase-workflow:
+    - "*"
+
+OCA/reporting-engine:
+    - "*"
+
+OCA/sale-workflow:
+    - "*"
+
+OCA/social:
+    - email_template_qweb
+    - mail_debrand
+    - mail_tracking
+
+OCA/server-tools:
+    - "*"
+
+OCA/web:
+    - "*"
+
+OCA/l10n-netherlands:
+    - "*"
+
+sunflowerit/odoo-modules:
+    - "*"
+
+OCA/partner-contact:
+    - "*"
+
+OCA/account-invoicing:
+    - purchase_stock_picking_return_invoicing
+
+OCA/account-invoice-reporting:
+    - "*"
+
+OCA/sale-reporting:
+    - "*"
+
+OCA/intrastat:
+    - "*"
+
+OCA/stock-logistics-barcode:
+    - "*"
+
+OCA/stock-logistics-tracking:
+    - "*"
+
+OCA/stock-logistics-warehouse:
+    - "*"
+
+OCA/stock-logistics-workflow:
+    - "*"
+
+OCA/report-print-send:
+    - base_report_to_printer
+    - printer_tray
+
+sunflowerit/enterprise:
+    - mrp_mps
+    - account_sepa
+    - delivery_ups
+    - stock_barcode
+    - stock_barcode_mobile
+    - web_enterprise
+    - web_mobile
+
+sunflowerit/freshfilter:
+    - "*"
+
+Therp/therp-addons:
+    - "*"
+
+OCA/website:
+    - website_menu_permission

@@ -57,3 +57,7 @@ doc/build/
 .venv/
 local.env
 sfoil/
+custom/src/*
+!custom/src/addons.yaml
+!custom/src/repos.yaml
+Pipfile.lock
