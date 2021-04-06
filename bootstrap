@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+
+# Set environment
+WAFT_PATH=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+SFOIL_PATH=$WAFT_PATH/sfoil
+. $WAFT_PATH/shared.env
+WAFT_VENV_PATH=$WAFT_PATH/$WAFT_VENV
+
+# Reinstall SFOIL at target version
+rm -Rf $SFOIL_PATH
+git clone --single-branch --branch $WAFT_SFOIL_BRANCH $WAFT_SFOIL_SOURCE $SFOIL_PATH
+
+# Check requirements
+$SFOIL_PATH/bin/sfoil-check-requirements
+
+# Create virtual environment
+$SFOIL_PATH/bin/sfoil-create-venv $WAFT_PYTHON_VERSION $WAFT_VENV_PATH
+
+# Install SFOIL
+pip install -e $SFOIL_PATH
+
+# Resume with SFOIL-specific bootstrapping
+. $WAFT_VENV_PATH/bin/activate
+. sfoil-bootstrap
