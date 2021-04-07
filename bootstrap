@@ -107,3 +107,4 @@ chmod 740 $(cd "$(dirname "$0")" && pwd)/install
 chmod -f 600 $(cd "$(dirname "$0")" && pwd)/Pipfile
 chmod -f 600 $(cd "$(dirname "$0")" && pwd)/Pipfile.lock
 chmod 740 $(cd "$(dirname "$0")" && pwd)/run
+
