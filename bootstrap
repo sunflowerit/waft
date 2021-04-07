@@ -20,10 +20,13 @@ if [ ! -f /usr/bin/direnv ]; then
     exit 0
 fi
 
+/bin/rm -fr sfoil
+/usr/bin/git clone git@sfithub.com:sunflowerit/sfoil.git $(cd "$(dirname "$0")" && pwd)/sfoil
+
 if [ ! -f $(cd "$(dirname "$0")" && pwd)/.env ]; then
     echo "$(cd "$(dirname "$0")" && pwd)/.env file not found!"
     echo "Create it by running:"
-    echo "Copy it from $(cd "$(dirname "$0")" && pwd)/templates/"
+    echo "Copy it from $(cd "$(dirname "$0")" && pwd)/sfoil/templates/"
     echo "Then use your favorite editor to edit things like: Postgres database password, etc."
     exit 0
 fi
@@ -31,20 +34,20 @@ fi
 if [ ! -f $(cd "$(dirname "$0")" && pwd)/.envrc ]; then
     echo "$(cd "$(dirname "$0")" && pwd)/.envrc file not found!"
     echo "Create it by running:"
-    echo "Copy it from $(cd "$(dirname "$0")" && pwd)/templates/"
+    echo "Copy it from $(cd "$(dirname "$0")" && pwd)/sfoil/templates/"
     echo "Then use your favorite editor to edit things like: Postgres database password, etc."
     exit 0
 fi
 
 if [ ! -f $(cd "$(dirname "$0")" && pwd)/common/conf.d/odoo.cfg ]; then
     echo "$(cd "$(dirname "$0")" && pwd)/common/conf.d/odoo.cfg file not found!"
-    echo "Copy it from $(cd "$(dirname "$0")" && pwd)/templates/"
+    echo "Copy it from $(cd "$(dirname "$0")" && pwd)/sfoil/templates/"
     exit 0
 fi
 
 if [ ! -f $(cd "$(dirname "$0")" && pwd)/Pipfile ]; then
     echo "$(cd "$(dirname "$0")" && pwd)/Pipfile file not found!"
-    echo "Copy it from $(cd "$(dirname "$0")" && pwd)/templates/"
+    echo "Copy it from $(cd "$(dirname "$0")" && pwd)/sfoil/templates/"
     exit 0
 fi
 
@@ -53,17 +56,32 @@ if [ ! -d $(cd "$(dirname "$0")" && pwd)/.venv ]; then
     cd "$(dirname "$0")" && $HOME/.local/bin/pipenv install
 fi
 
-ln -sf $(cd "$(dirname "$0")" && pwd)/bin/direxec $(cd "$(dirname "$0")" && pwd)/common/build
-ln -sf $(cd "$(dirname "$0")" && pwd)/bin/direxec $(cd "$(dirname "$0")" && pwd)/common/entrypoint
-ln -sf $(cd "$(dirname "$0")" && pwd)/lib/doodbalib $(cd "$(dirname "$0")" && pwd)/.venv/lib/*/site-packages/
-ln -sf $(cd "$(dirname "$0")" && pwd)/lib/doodbalib $(cd "$(dirname "$0")" && pwd)/.venv/lib/*/site-packages/
-ln -sf $(cd "$(dirname "$0")" && pwd)/bin/* $(cd "$(dirname "$0")" && pwd)/.venv/bin/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/bin/direxec $(cd "$(dirname "$0")" && pwd)/common/build
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/bin/direxec $(cd "$(dirname "$0")" && pwd)/common/entrypoint
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/lib/doodbalib $(cd "$(dirname "$0")" && pwd)/.venv/lib/*/site-packages/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/lib/doodbalib $(cd "$(dirname "$0")" && pwd)/.venv/lib/*/site-packages/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/bin/* $(cd "$(dirname "$0")" && pwd)/.venv/bin/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/build.d/100-repos-aggregate $(cd "$(dirname "$0")" && pwd)/common/build.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/build.d/200-dependencies $(cd "$(dirname "$0")" && pwd)/common/build.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/build.d/400-clean $(cd "$(dirname "$0")" && pwd)/common/build.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/build.d/500-compile $(cd "$(dirname "$0")" && pwd)/common/build.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/build.d/700-odoo-install $(cd "$(dirname "$0")" && pwd)/common/build.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/build.d/900-dependencies-cleanup $(cd "$(dirname "$0")" && pwd)/common/build.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/entrypoint.d/20-postgres-wait $(cd "$(dirname "$0")" && pwd)/common/entrypoint.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/entrypoint.d/30-unaccent-install $(cd "$(dirname "$0")" && pwd)/common/entrypoint.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/entrypoint.d/40-addons-link $(cd "$(dirname "$0")" && pwd)/common/entrypoint.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/entrypoint.d/50-config-generate $(cd "$(dirname "$0")" && pwd)/common/entrypoint.d/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/build $(cd "$(dirname "$0")" && pwd)/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/initial-database $(cd "$(dirname "$0")" && pwd)/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/install $(cd "$(dirname "$0")" && pwd)/
+ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/run $(cd "$(dirname "$0")" && pwd)/
+
 # set permissions
 chmod 750 $(cd "$(dirname "$0")" && pwd)
 chmod 750 $(cd "$(dirname "$0")" && pwd)/auto
 chmod 750 $(cd "$(dirname "$0")" && pwd)/auto/addons
-chmod 750 $(cd "$(dirname "$0")" && pwd)/bin
-chmod 740 $(cd "$(dirname "$0")" && pwd)/bin/*
+chmod 750 $(cd "$(dirname "$0")" && pwd)/sfoil/bin
+chmod 740 $(cd "$(dirname "$0")" && pwd)/sfoil/bin/*
 chmod 750 $(cd "$(dirname "$0")" && pwd)/common
 chmod 750 $(cd "$(dirname "$0")" && pwd)/common/build.d
 chmod 740 $(cd "$(dirname "$0")" && pwd)/common/build.d/*
@@ -76,12 +94,10 @@ chmod 750 $(cd "$(dirname "$0")" && pwd)/custom/src
 chmod 750 $(cd "$(dirname "$0")" && pwd)/custom/src/private/
 chmod -f 640 $(cd "$(dirname "$0")" && pwd)/custom/src/addons.yaml
 chmod -f 640 $(cd "$(dirname "$0")" && pwd)/custom/src/repos.yaml
-chmod 750 $(cd "$(dirname "$0")" && pwd)/lib
-chmod 750 $(cd "$(dirname "$0")" && pwd)/lib/doodbalib
-chmod 740 $(cd "$(dirname "$0")" && pwd)/lib/doodbalib/*
-chmod 750 $(cd "$(dirname "$0")" && pwd)/qa
-chmod 750 $(cd "$(dirname "$0")" && pwd)/qa/artifacts
-chmod 640 $(cd "$(dirname "$0")" && pwd)/templates/*
+chmod 750 $(cd "$(dirname "$0")" && pwd)/sfoil/lib
+chmod 750 $(cd "$(dirname "$0")" && pwd)/sfoil/lib/doodbalib
+chmod 740 $(cd "$(dirname "$0")" && pwd)/sfoil/lib/doodbalib/*
+chmod 640 $(cd "$(dirname "$0")" && pwd)/sfoil/templates/*
 chmod -f 600 $(cd "$(dirname "$0")" && pwd)/.env
 chmod -f 600 $(cd "$(dirname "$0")" && pwd)/.envrc
 chmod 740 $(cd "$(dirname "$0")" && pwd)/bootstrap
