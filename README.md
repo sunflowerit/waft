@@ -1,4 +1,1 @@
-Waft
-====
-
-This is an example project for building Odoo.
+# SunflowerIT Odoo installation method
