@@ -65,7 +65,6 @@ fi
 ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/bin/direxec $(cd "$(dirname "$0")" && pwd)/common/build
 ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/bin/direxec $(cd "$(dirname "$0")" && pwd)/common/entrypoint
 ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/lib/doodbalib $(cd "$(dirname "$0")" && pwd)/.venv/lib/*/site-packages/
-ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/lib/doodbalib $(cd "$(dirname "$0")" && pwd)/.venv/lib/*/site-packages/
 ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/bin/* $(cd "$(dirname "$0")" && pwd)/.venv/bin/
 ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/build.d/100-repos-aggregate $(cd "$(dirname "$0")" && pwd)/common/build.d/
 ln -sf $(cd "$(dirname "$0")" && pwd)/sfoil/build.d/200-dependencies $(cd "$(dirname "$0")" && pwd)/common/build.d/
