@@ -9,7 +9,7 @@ if [ ! -x "$(command -v pipenv)" ]; then
     echo 'export PATH="${HOME}/.local/bin:$PATH"'
     echo 'then issue this command:'
     echo 'source $HOME/.bashrc'
-    exit 0
+    exit 1
 fi
 
 if [ ! -x "$(command -v direnv)" ]; then
@@ -19,7 +19,7 @@ if [ ! -x "$(command -v direnv)" ]; then
     echo 'eval "$(direnv hook bash)"'
     echo 'then issue this command:'
     echo 'source $HOME/.bashrc'
-    exit 0
+    exit 1
 fi
 
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -39,7 +39,7 @@ if [ ! -f .env ]; then
     echo "Create it by running:"
     echo "Copy it from sfoil/templates/"
     echo "Then use your favorite editor to edit things like: Postgres database password, etc."
-    exit 0
+    exit 1
 fi
 
 if [ ! -f .envrc ]; then
@@ -47,19 +47,19 @@ if [ ! -f .envrc ]; then
     echo "Create it by running:"
     echo "Copy it from sfoil/templates/"
     echo "Then use your favorite editor to edit things like: Postgres database password, etc."
-    exit 0
+    exit 1
 fi
 
 if [ ! -f common/conf.d/odoo.cfg ]; then
     echo "common/conf.d/odoo.cfg file not found!"
     echo "Copy it from sfoil/templates/"
-    exit 0
+    exit 1
 fi
 
 if [ ! -f Pipfile ]; then
     echo "Pipfile file not found!"
     echo "Copy it from sfoil/templates/"
-    exit 0
+    exit 1
 fi
 
 if [ ! -d .venv ]; then
