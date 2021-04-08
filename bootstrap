@@ -66,26 +66,33 @@ if [ ! -d .venv ]; then
     PIPENV_VENV_IN_PROJECT="enabled" pipenv install
 fi
 
-ln -sf ../sfoil/bin/direxec common/build
-ln -sf ../sfoil/bin/direxec common/entrypoint
-ln -sf ../../../../sfoil/lib/doodbalib .venv/lib/*/site-packages/
+# in .gitignore so not overridable
+cd .venv/lib/*/site-packages
+ln -sf ../../../../sfoil/lib/doodbalib doodbalib
+cd ../../../..
+
 cd .venv/bin
-ln -sf ../../sfoil/bin/* ./
+for f in ../../sfoil/bin/*; do ln -sf $f $(basename $f); done
 cd ../..
-ln -sf ../../sfoil/build.d/100-repos-aggregate common/build.d/
-ln -sf ../../sfoil/build.d/200-dependencies common/build.d/
-ln -sf ../../sfoil/build.d/400-clean common/build.d/
-ln -sf ../../sfoil/build.d/500-compile common/build.d/
-ln -sf ../../sfoil/build.d/700-odoo-install common/build.d/
-ln -sf ../../sfoil/build.d/900-dependencies-cleanup common/build.d/
-ln -sf ../../sfoil/entrypoint.d/20-postgres-wait common/entrypoint.d/
-ln -sf ../../sfoil/entrypoint.d/30-unaccent-install common/entrypoint.d/
-ln -sf ../../sfoil/entrypoint.d/40-addons-link common/entrypoint.d/
-ln -sf ../../sfoil/entrypoint.d/50-config-generate common/entrypoint.d/
-ln -sf sfoil/build 
-ln -sf sfoil/initial-database 
-ln -sf sfoil/install 
-ln -sf sfoil/run 
+
+# not in .gitignore so overridable
+cd common
+[ ! -e build ] && ln -sf ../sfoil/bin/direxec build
+[ ! -e entrypoint ] && ln -sf ../sfoil/bin/direxec entrypoint
+cd ..
+
+cd common/build.d
+for f in ../../sfoil/build.d/*; do [ ! -e $(basename $f) ] && ln -sf $f $(basename $f); done
+cd ../..
+
+cd common/entrypoint.d
+for f in ../../sfoil/entrypoint.d/*; do [ ! -e $(basename $f) ] && ln -sf $f $(basename $f); done
+cd ../..
+
+[ ! -e build ] && ln -sf sfoil/build 
+[ ! -e initial-database ] && ln -sf sfoil/initial-database 
+[ ! -e install ] && ln -sf sfoil/install 
+[ ! -e run ] && ln -sf sfoil/run 
 
 # set permissions
 chmod 750 .
