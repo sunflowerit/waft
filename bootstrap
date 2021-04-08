@@ -2,7 +2,7 @@
 
 set -e
 
-if [ ! -x "$(command -v pipenv)" ]; then
+if [ ! -f $HOME/.local/bin/pipenv ]; then
     echo 'pipenv python pip package does not installed, Install it by running:'
     echo 'pip install pipenv --user'
     echo 'then add this line to $HOME/.bashrc:'
@@ -12,7 +12,7 @@ if [ ! -x "$(command -v pipenv)" ]; then
     exit 1
 fi
 
-if [ ! -x "$(command -v direnv)" ]; then
+if [ ! -f /usr/bin/direnv ]; then
     echo 'direnv apt package does not installed, Install it by running:'
     echo 'sudo apt install direnv'
     echo 'then add this line to $HOME/.bashrc:'
