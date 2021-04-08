@@ -23,6 +23,12 @@ fi
 /bin/rm -fr sfoil
 /usr/bin/git clone git@sfithub.com:sunflowerit/sfoil.git $(cd "$(dirname "$0")" && pwd)/sfoil
 
+/bin/mkdir -p $(cd "$(dirname "$0")" && pwd)/auto/addons/
+/bin/mkdir -p $(cd "$(dirname "$0")" && pwd)/common/build.d/
+/bin/mkdir -p $(cd "$(dirname "$0")" && pwd)/common/conf.d/
+/bin/mkdir -p $(cd "$(dirname "$0")" && pwd)/common/entrypoint.d/
+/bin/mkdir -p $(cd "$(dirname "$0")" && pwd)/custom/src/private/
+
 if [ ! -f $(cd "$(dirname "$0")" && pwd)/.env ]; then
     echo "$(cd "$(dirname "$0")" && pwd)/.env file not found!"
     echo "Create it by running:"
