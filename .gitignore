@@ -1,8 +1,10 @@
-*
-
-!custom/src/addons.yaml
+.venv/
+sfoil/
+auto/
+logfile/
+.env
+/custom/src/*
+!/custom/src/.gitkeep
+!/custom/src/addons.yaml
 !custom/src/repos.yaml
-!.gitignore
-!bootstrap
-!README.md
-
+Pipfile.lock
