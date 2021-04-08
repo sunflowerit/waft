@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 if [ ! -x "$(command -v pipenv)" ]; then
     echo 'pipenv python pip package does not installed, Install it by running:'
     echo 'pip install pipenv --user'
@@ -64,8 +66,8 @@ if [ ! -d .venv ]; then
     PIPENV_VENV_IN_PROJECT="enabled" pipenv install
 fi
 
-ln -sf ../sfoil/bin/direxec build
-ln -sf ../sfoil/bin/direxec entrypoint
+ln -sf ../sfoil/bin/direxec common/build
+ln -sf ../sfoil/bin/direxec common/entrypoint
 ln -sf ../../../../sfoil/lib/doodbalib .venv/lib/*/site-packages/
 cd .venv/bin
 ln -sf ../../sfoil/bin/* ./
@@ -86,10 +88,14 @@ ln -sf sfoil/install
 ln -sf sfoil/run 
 
 # set permissions
-chmod 750 $(cd "$(dirname "$0")" && pwd)
+chmod 750 .
 chmod 750 auto
 chmod 750 auto/addons
 chmod 750 sfoil/bin
+chmod 750 sfoil/build
+chmod 750 sfoil/run
+chmod 750 sfoil/install
+chmod 750 sfoil/initial-database
 chmod 740 sfoil/bin/*
 chmod 750 common
 chmod 750 common/build.d
