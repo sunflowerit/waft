@@ -91,38 +91,38 @@ cd $WORK_DIRECTORY && \
 [ ! -e run ] && /bin/ln -sf sfoil/run 
 
 # set permissions
-/bin/chmod 750 $WORK_DIRECTORY
-/bin/chmod 750 $WORK_DIRECTORY/auto
-/bin/chmod 750 $WORK_DIRECTORY/auto/addons
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/bin
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/build
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/run
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/install
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/initial-database
-/bin/chmod 740 $WORK_DIRECTORY/sfoil/bin/*
-/bin/chmod 750 $WORK_DIRECTORY/common
-/bin/chmod 750 $WORK_DIRECTORY/common/build.d
-/bin/chmod 740 $WORK_DIRECTORY/common/build.d/*
-/bin/chmod 750 $WORK_DIRECTORY/common/conf.d
-/bin/chmod -f 640 $WORK_DIRECTORY/common/conf.d/odoo.cfg
-/bin/chmod 750 $WORK_DIRECTORY/common/entrypoint.d
-/bin/chmod 740 $WORK_DIRECTORY/common/entrypoint.d/*
-/bin/chmod 750 $WORK_DIRECTORY/custom
-/bin/chmod 750 $WORK_DIRECTORY/custom/src
-/bin/chmod 750 $WORK_DIRECTORY/custom/src/private/
-/bin/chmod -f 640 $WORK_DIRECTORY/custom/src/addons.yaml
-/bin/chmod -f 640 $WORK_DIRECTORY/custom/src/repos.yaml
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/lib
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/lib/doodbalib
-/bin/chmod 740 $WORK_DIRECTORY/sfoil/lib/doodbalib/*
-/bin/chmod 640 $WORK_DIRECTORY/sfoil/templates/*
-/bin/chmod -f 600 $WORK_DIRECTORY/.env
-/bin/chmod -f 600 $WORK_DIRECTORY/.envrc
-/bin/chmod 740 $WORK_DIRECTORY/bootstrap
-/bin/chmod 740 $WORK_DIRECTORY/build
-/bin/chmod 740 $WORK_DIRECTORY/initial-database
-/bin/chmod 740 $WORK_DIRECTORY/install
-/bin/chmod -f 600 $WORK_DIRECTORY/Pipfile
-/bin/chmod -f 600 $WORK_DIRECTORY/Pipfile.lock
-/bin/chmod 740 $WORK_DIRECTORY/run
+/bin/chmod 750 $WORK_DIRECTORY || true
+/bin/chmod 750 $WORK_DIRECTORY/auto || true
+/bin/chmod 750 $WORK_DIRECTORY/auto/addons || true
+/bin/chmod 750 $WORK_DIRECTORY/sfoil/bin || true
+/bin/chmod 750 $WORK_DIRECTORY/sfoil/build || true
+/bin/chmod 750 $WORK_DIRECTORY/sfoil/run || true
+/bin/chmod 750 $WORK_DIRECTORY/sfoil/install || true
+/bin/chmod 750 $WORK_DIRECTORY/sfoil/initial-database || true
+/bin/chmod 740 $WORK_DIRECTORY/sfoil/bin/* || true
+/bin/chmod 750 $WORK_DIRECTORY/common || true
+/bin/chmod 750 $WORK_DIRECTORY/common/build.d || true
+/bin/chmod 740 $WORK_DIRECTORY/common/build.d/* || true
+/bin/chmod 750 $WORK_DIRECTORY/common/conf.d || true
+/bin/chmod -f 640 $WORK_DIRECTORY/common/conf.d/odoo.cfg || true
+/bin/chmod 750 $WORK_DIRECTORY/common/entrypoint.d || true
+/bin/chmod 740 $WORK_DIRECTORY/common/entrypoint.d/* || true
+/bin/chmod 750 $WORK_DIRECTORY/custom || true
+/bin/chmod 750 $WORK_DIRECTORY/custom/src || true
+/bin/chmod 750 $WORK_DIRECTORY/custom/src/private/ || true
+/bin/chmod -f 640 $WORK_DIRECTORY/custom/src/addons.yaml || true
+/bin/chmod -f 640 $WORK_DIRECTORY/custom/src/repos.yaml || true
+/bin/chmod 750 $WORK_DIRECTORY/sfoil/lib || true
+/bin/chmod 750 $WORK_DIRECTORY/sfoil/lib/doodbalib || true
+/bin/chmod 740 $WORK_DIRECTORY/sfoil/lib/doodbalib/* || true
+/bin/chmod 640 $WORK_DIRECTORY/sfoil/templates/* || true
+/bin/chmod -f 600 $WORK_DIRECTORY/.env || true
+/bin/chmod -f 600 $WORK_DIRECTORY/.envrc || true
+/bin/chmod 740 $WORK_DIRECTORY/bootstrap || true
+/bin/chmod 740 $WORK_DIRECTORY/build || true
+/bin/chmod 740 $WORK_DIRECTORY/initial-database || true
+/bin/chmod 740 $WORK_DIRECTORY/install || true
+/bin/chmod -f 600 $WORK_DIRECTORY/Pipfile || true
+/bin/chmod -f 600 $WORK_DIRECTORY/Pipfile.lock || true
+/bin/chmod 740 $WORK_DIRECTORY/run || true
 
