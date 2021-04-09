@@ -26,13 +26,13 @@ WORK_DIRECTORY=$(SCRIPT_PATH= cd -- "$(/usr/bin/dirname "$0")" && /bin/pwd)
 cd $WORK_DIRECTORY
 
 /bin/rm -fr sfoil
-/usr/bin/git clone git@sfithub.com:sunflowerit/sfoil.git sfoil
+/usr/bin/git clone git@sfithub.com:sunflowerit/sfoil.git $WORK_DIRECTORY/sfoil
 
-/bin/mkdir -p auto/addons/
-/bin/mkdir -p common/build.d/
-/bin/mkdir -p common/conf.d/
-/bin/mkdir -p common/entrypoint.d/
-/bin/mkdir -p custom/src/private/
+/bin/mkdir -p $WORK_DIRECTORY/auto/addons/
+/bin/mkdir -p $WORK_DIRECTORY/common/build.d/
+/bin/mkdir -p $WORK_DIRECTORY/common/conf.d/
+/bin/mkdir -p $WORK_DIRECTORY/common/entrypoint.d/
+/bin/mkdir -p $WORK_DIRECTORY/custom/src/private/
 
 if [ ! -f $WORK_DIRECTORY/.env ]; then
     echo "$WORK_DIRECTORY/.env file not found!"
