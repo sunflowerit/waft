@@ -2,8 +2,20 @@
 
 set -e
 
+if [ ! -f $PYENV_ROOT/bin/pyenv ]; then
+    cat << "END"
+pyenv is not installed, Install it by running:
+git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+then issue this command:
+source $HOME/.bashrc
+END
+    exit 1
+fi
+
 if [ ! -f $HOME/.local/bin/pipenv ]; then
-    echo 'pipenv python pip package does not installed, Install it by running:'
+    echo 'pipenv python pip package is not installed, Install it by running:'
     echo 'pip install pipenv --user'
     echo 'then add this line to $HOME/.bashrc:'
     echo 'export PATH="${HOME}/.local/bin:$PATH"'
@@ -13,7 +25,7 @@ if [ ! -f $HOME/.local/bin/pipenv ]; then
 fi
 
 if [ ! -f /usr/bin/direnv ]; then
-    echo 'direnv apt package does not installed, Install it by running:'
+    echo 'direnv apt package is not installed, Install it by running:'
     echo 'sudo apt install direnv'
     echo "then add this line to $HOME/.bashrc:"
     echo 'eval "$(direnv hook bash)"'
@@ -36,17 +48,15 @@ cd $WORK_DIRECTORY
 
 if [ ! -f $WORK_DIRECTORY/.env ]; then
     echo "$WORK_DIRECTORY/.env file not found!"
-    echo "Create it by running:"
     echo "Copy it from $WORK_DIRECTORY/sfoil/templates/"
-    echo "Then use your favorite editor to edit things like: Postgres database password, etc."
+    echo "Then use your favorite editor to edit local settings like: Postgres database password, etc."
     exit 1
 fi
 
 if [ ! -f $WORK_DIRECTORY/.envrc ]; then
     echo "$WORK_DIRECTORY/.envrc file not found!"
-    echo "Create it by running:"
     echo "Copy it from $WORK_DIRECTORY/sfoil/templates/"
-    echo "Then use your favorite editor to edit things like: Postgres database password, etc."
+    echo "Then use your favorite editor to edit shared settings."
     exit 1
 fi
 
@@ -63,7 +73,7 @@ if [ ! -f $WORK_DIRECTORY/Pipfile ]; then
 fi
 
 if [ ! -d $WORK_DIRECTORY/.venv ]; then
-    PIPENV_VENV_IN_PROJECT="enabled" $HOME/.local/bin/pipenv install
+    PIPENV_VENV_IN_PROJECT="enabled" PIPENV_YES="1" $HOME/.local/bin/pipenv install
 fi
 
 # in .gitignore so not overridable
@@ -88,7 +98,7 @@ cd $WORK_DIRECTORY && \
 [ ! -e build ] && /bin/ln -sf sfoil/build && \
 [ ! -e initial-database ] && /bin/ln -sf sfoil/initial-database && \
 [ ! -e install ] && /bin/ln -sf sfoil/install && \
-[ ! -e run ] && /bin/ln -sf sfoil/run 
+[ ! -e run ] && /bin/ln -sf sfoil/run
 
 # set permissions
 /bin/chmod 750 $WORK_DIRECTORY || true
