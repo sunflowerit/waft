@@ -2,9 +2,7 @@
 
 set -e
 
-PYENV_ROOT=${PYENV_ROOT:-$HOME/.pyenv}
-
-if [ ! -f $PYENVROOT/bin/pyenv ]; then
+if [ ! -f ${PYENV_ROOT:-$HOME/.pyenv}/bin/pyenv ]; then
     cat << "END"
 pyenv is not installed, Install it by running:
 git clone https://github.com/pyenv/pyenv.git ~/.pyenv
