@@ -68,10 +68,10 @@ fi
 
 # in .gitignore so not overridable
 cd $WORK_DIRECTORY/.venv/lib/*/site-packages && \
-/bin/ln -sf ../../../../sfoil/lib/doodbalib doodbalib
+/bin/ln -sf ../../../../sfoil/lib/doodbalib
 
 cd $WORK_DIRECTORY/.venv/bin && \
-for f in ../../sfoil/bin/*; do /bin/ln -sf $f $(/usr/bin/basename $f); done
+for f in ../../sfoil/bin/*; do /bin/ln -sf $f; done
 
 # not in .gitignore so overridable
 cd $WORK_DIRECTORY/common && \
