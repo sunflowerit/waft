@@ -53,7 +53,7 @@ if [ ! -f $WORKING_DIRECTORY/Pipfile ]; then
 fi
 
 if [ ! -f $WORKING_DIRECTORY/.env-shared ]; then
-    /bin/cp $WORKING_DIRECTORY/waftlib/.env-shared-template $WORKING_DIRECTORY/
+    /bin/cp $WORKING_DIRECTORY/waftlib/templates/.env-shared-template $WORKING_DIRECTORY/.env-shared
 fi
 
 . $WORKING_DIRECTORY/.env-shared && \
@@ -68,7 +68,7 @@ if [ $(/bin/echo $ODOO_VERSION | /usr/bin/cut -d'.' -f1) -ge '15' ]; then
 fi
 
 if [ ! -f $WORKING_DIRECTORY/common/conf.d/odoo.cfg ]; then
-  /bin/cp $WORKING_DIRECTORY/waftlib/odoo$ODOO_VERSION.cfg-template $WORKING_DIRECTORY/common/conf.d/odoo.cfg
+  /bin/cp $WORKING_DIRECTORY/waftlib/templates/odoo$ODOO_VERSION.cfg-template $WORKING_DIRECTORY/common/conf.d/odoo.cfg
 fi
 
 if [ ! -d $WORKING_DIRECTORY/.venv ]; then
@@ -121,7 +121,6 @@ cd $WORKING_DIRECTORY && \
 /bin/chmod 750 $WORKING_DIRECTORY/custom/src/private/ || true
 /bin/chmod -f 640 $WORKING_DIRECTORY/custom/src/addons.yaml || true
 /bin/chmod -f 640 $WORKING_DIRECTORY/custom/src/repos.yaml || true
-/bin/chmod 750 $WORKING_DIRECTORY/waftlib/lib || true
 /bin/chmod 750 $WORKING_DIRECTORY/waftlib/doodbalib || true
 /bin/chmod 740 $WORKING_DIRECTORY/waftlib/doodbalib/* || true
 /bin/chmod 640 $WORKING_DIRECTORY/waftlib/templates/* || true
