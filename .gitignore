@@ -4,6 +4,7 @@ auto/
 logfile/
 .env
 .env-secret
+.venv
 /custom/src/*
 !/custom/src/.gitkeep
 !/custom/src/addons.yaml
