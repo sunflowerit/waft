@@ -2,12 +2,24 @@
 
 set -e
 
+LIBRARIES_REPOSITORIES='git@sfithub.com:sunflowerit/sfoil.git'
+LIBRARIES_BRANCH='improve'
+
+################################################################
+######                                                    ######
+######       Don't change variables after this line       ######
+######                                                    ######
+################################################################
+
+WORKING_DIRECTORY=$(SCRIPT_PATH= cd -- "$(/usr/bin/dirname "$0")" && /bin/pwd)
+cd $WORKING_DIRECTORY
+
 if [ ! -f ${PYENV_ROOT:-$HOME/.pyenv}/bin/pyenv ]; then
     cat << "END"
 pyenv is not installed, Install it by running:
 git clone https://github.com/pyenv/pyenv.git ~/.pyenv
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+/bin/echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+/bin/echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
 then issue this command:
 source $HOME/.bashrc
 END
@@ -15,124 +27,111 @@ END
 fi
 
 if [ ! -f $HOME/.local/bin/pipenv ]; then
-    echo 'pipenv python pip package is not installed, Install it by running:'
-    echo 'pip install pipenv --user'
-    echo 'then add this line to $HOME/.bashrc:'
-    echo 'export PATH="${HOME}/.local/bin:$PATH"'
-    echo 'then issue this command:'
-    echo 'source $HOME/.bashrc'
+    /bin/echo 'pipenv python pip package is not installed, Install it by running:'
+    /bin/echo 'pip install pipenv --user'
+    /bin/echo 'then add this line to $HOME/.bashrc:'
+    /bin/echo 'export PATH="${HOME}/.local/bin:$PATH"'
+    /bin/echo 'then issue this command:'
+    /bin/echo 'source $HOME/.bashrc'
     exit 1
 fi
 
-if [ ! -f /usr/bin/direnv ]; then
-    echo 'direnv apt package is not installed, Install it by running:'
-    echo 'sudo apt install direnv'
-    echo "then add this line to $HOME/.bashrc:"
-    echo 'eval "$(direnv hook bash)"'
-    echo 'then issue this command:'
-    echo 'source $HOME/.bashrc'
-    exit 1
+/bin/rm -fr waftlib
+/usr/bin/git clone -b $LIBRARIES_BRANCH $LIBRARIES_REPOSITORIES $WORKING_DIRECTORY/waftlib
+
+/usr/bin/touch $WORKING_DIRECTORY/.env-secret
+/bin/mkdir -p $WORKING_DIRECTORY/auto/addons/
+/bin/mkdir -p $WORKING_DIRECTORY/common/build.d/
+/bin/mkdir -p $WORKING_DIRECTORY/common/conf.d/
+/bin/mkdir -p $WORKING_DIRECTORY/common/entrypoint.d/
+/bin/mkdir -p $WORKING_DIRECTORY/custom/src/private/
+
+if [ ! -f $WORKING_DIRECTORY/Pipfile ]; then
+  /bin/echo "$WORKING_DIRECTORY/Pipfile file not found!"
+  /bin/echo "Copy it from $WORKING_DIRECTORY/waftlib/templates/"
+  exit 1
 fi
 
-WORK_DIRECTORY=$(SCRIPT_PATH= cd -- "$(/usr/bin/dirname "$0")" && /bin/pwd)
-cd $WORK_DIRECTORY
-
-/bin/rm -fr sfoil
-/usr/bin/git clone git@sfithub.com:sunflowerit/sfoil.git $WORK_DIRECTORY/sfoil
-
-/bin/mkdir -p $WORK_DIRECTORY/auto/addons/
-/bin/mkdir -p $WORK_DIRECTORY/common/build.d/
-/bin/mkdir -p $WORK_DIRECTORY/common/conf.d/
-/bin/mkdir -p $WORK_DIRECTORY/common/entrypoint.d/
-/bin/mkdir -p $WORK_DIRECTORY/custom/src/private/
-
-if [ ! -f $WORK_DIRECTORY/.env ]; then
-    echo "$WORK_DIRECTORY/.env file not found!"
-    echo "Copy it from $WORK_DIRECTORY/sfoil/templates/"
-    echo "Then use your favorite editor to edit local settings like: Postgres database password, etc."
-    exit 1
+if [ ! -f $WORKING_DIRECTORY/.env-shared ]; then
+    /bin/cp $WORKING_DIRECTORY/waftlib/.env-shared-template $WORKING_DIRECTORY/
 fi
 
-if [ ! -f $WORK_DIRECTORY/.envrc ]; then
-    echo "$WORK_DIRECTORY/.envrc file not found!"
-    echo "Copy it from $WORK_DIRECTORY/sfoil/templates/"
-    echo "Then use your favorite editor to edit shared settings."
-    exit 1
+. $WORKING_DIRECTORY/.env-shared && \
+. $WORKING_DIRECTORY/.env-secret
+
+if [ $(/bin/echo $ODOO_VERSION | /usr/bin/cut -d'.' -f1) -le '8' ]; then
+  /bin/echo "Waft does not support $ODOO_VERSION"
 fi
 
-if [ ! -f $WORK_DIRECTORY/common/conf.d/odoo.cfg ]; then
-    echo "$WORK_DIRECTORY/common/conf.d/odoo.cfg file not found!"
-    echo "Copy it from $WORK_DIRECTORY/sfoil/templates/"
-    exit 1
+if [ $(/bin/echo $ODOO_VERSION | /usr/bin/cut -d'.' -f1) -ge '15' ]; then
+  /bin/echo "Waft does not support $ODOO_VERSION yet"
 fi
 
-if [ ! -f $WORK_DIRECTORY/Pipfile ]; then
-    echo "$WORK_DIRECTORY/Pipfile file not found!"
-    echo "Copy it from $WORK_DIRECTORY/sfoil/templates/"
-    exit 1
+if [ ! -f $WORKING_DIRECTORY/common/conf.d/odoo.cfg ]; then
+  /bin/cp $WORKING_DIRECTORY/waftlib/odoo$ODOO_VERSION.cfg-template $WORKING_DIRECTORY/common/conf.d/odoo.cfg
 fi
 
-if [ ! -d $WORK_DIRECTORY/.venv ]; then
-    PIPENV_VENV_IN_PROJECT="enabled" PIPENV_YES="1" $HOME/.local/bin/pipenv install
+if [ ! -d $WORKING_DIRECTORY/.venv ]; then
+  PIPENV_VENV_IN_PROJECT="enabled" PIPENV_YES="1" $HOME/.local/bin/pipenv install
 fi
 
 # in .gitignore so not overridable
-cd $WORK_DIRECTORY/.venv/lib/*/site-packages && \
-/bin/ln -sf ../../../../sfoil/lib/doodbalib
+cd $WORKING_DIRECTORY/.venv/lib/*/site-packages && \
+/bin/ln -sf ../../../../waftlib/doodbalib
 
-cd $WORK_DIRECTORY/.venv/bin && \
-for f in ../../sfoil/bin/*; do /bin/ln -sf $f; done
+cd $WORKING_DIRECTORY/.venv/bin && \
+for f in ../../waftlib/bin/*; do /bin/ln -sf $f; done
 
 # not in .gitignore so overridable
-cd $WORK_DIRECTORY/common && \
-[ ! -e build ] && /bin/ln -sf ../sfoil/bin/direxec build && \
-[ ! -e entrypoint ] && /bin/ln -sf ../sfoil/bin/direxec entrypoint
+cd $WORKING_DIRECTORY/common && \
+[ ! -e build ] && /bin/ln -sf ../waftlib/bin/direxec build && \
+[ ! -e entrypoint ] && /bin/ln -sf ../waftlib/bin/direxec entrypoint
 
-cd $WORK_DIRECTORY/common/build.d && \
-for f in ../../sfoil/build.d/*; do [ ! -e $(/usr/bin/basename $f) ] && /bin/ln -sf $f $(/usr/bin/basename $f); done
+cd $WORKING_DIRECTORY/common/build.d && \
+for f in ../../waftlib/build.d/*; do [ ! -e $(/usr/bin/basename $f) ] && /bin/ln -sf $f $(/usr/bin/basename $f); done
 
-cd $WORK_DIRECTORY/common/entrypoint.d && \
-for f in ../../sfoil/entrypoint.d/*; do [ ! -e $(/usr/bin/basename $f) ] && /bin/ln -sf $f $(/usr/bin/basename $f); done
+cd $WORKING_DIRECTORY/common/entrypoint.d && \
+for f in ../../waftlib/entrypoint.d/*; do [ ! -e $(/usr/bin/basename $f) ] && /bin/ln -sf $f $(/usr/bin/basename $f); done
 
-cd $WORK_DIRECTORY && \
-[ ! -e build ] && /bin/ln -sf sfoil/build && \
-[ ! -e initial-database ] && /bin/ln -sf sfoil/initial-database && \
-[ ! -e install ] && /bin/ln -sf sfoil/install && \
-[ ! -e run ] && /bin/ln -sf sfoil/run
+cd $WORKING_DIRECTORY && \
+[ ! -e build ] && /bin/ln -sf waftlib/build && \
+[ ! -e initial-database ] && /bin/ln -sf waftlib/initial-database && \
+[ ! -e install ] && /bin/ln -sf waftlib/install && \
+[ ! -e run ] && /bin/ln -sf waftlib/run
 
 # set permissions
-/bin/chmod 750 $WORK_DIRECTORY || true
-/bin/chmod 750 $WORK_DIRECTORY/auto || true
-/bin/chmod 750 $WORK_DIRECTORY/auto/addons || true
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/bin || true
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/build || true
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/run || true
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/install || true
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/initial-database || true
-/bin/chmod 740 $WORK_DIRECTORY/sfoil/bin/* || true
-/bin/chmod 750 $WORK_DIRECTORY/common || true
-/bin/chmod 750 $WORK_DIRECTORY/common/build.d || true
-/bin/chmod 740 $WORK_DIRECTORY/common/build.d/* || true
-/bin/chmod 750 $WORK_DIRECTORY/common/conf.d || true
-/bin/chmod -f 640 $WORK_DIRECTORY/common/conf.d/odoo.cfg || true
-/bin/chmod 750 $WORK_DIRECTORY/common/entrypoint.d || true
-/bin/chmod 740 $WORK_DIRECTORY/common/entrypoint.d/* || true
-/bin/chmod 750 $WORK_DIRECTORY/custom || true
-/bin/chmod 750 $WORK_DIRECTORY/custom/src || true
-/bin/chmod 750 $WORK_DIRECTORY/custom/src/private/ || true
-/bin/chmod -f 640 $WORK_DIRECTORY/custom/src/addons.yaml || true
-/bin/chmod -f 640 $WORK_DIRECTORY/custom/src/repos.yaml || true
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/lib || true
-/bin/chmod 750 $WORK_DIRECTORY/sfoil/lib/doodbalib || true
-/bin/chmod 740 $WORK_DIRECTORY/sfoil/lib/doodbalib/* || true
-/bin/chmod 640 $WORK_DIRECTORY/sfoil/templates/* || true
-/bin/chmod -f 600 $WORK_DIRECTORY/.env || true
-/bin/chmod -f 600 $WORK_DIRECTORY/.envrc || true
-/bin/chmod 740 $WORK_DIRECTORY/bootstrap || true
-/bin/chmod 740 $WORK_DIRECTORY/build || true
-/bin/chmod 740 $WORK_DIRECTORY/initial-database || true
-/bin/chmod 740 $WORK_DIRECTORY/install || true
-/bin/chmod -f 600 $WORK_DIRECTORY/Pipfile || true
-/bin/chmod -f 600 $WORK_DIRECTORY/Pipfile.lock || true
-/bin/chmod 740 $WORK_DIRECTORY/run || true
+/bin/chmod 750 $WORKING_DIRECTORY || true
+/bin/chmod 750 $WORKING_DIRECTORY/auto || true
+/bin/chmod 750 $WORKING_DIRECTORY/auto/addons || true
+/bin/chmod 750 $WORKING_DIRECTORY/waftlib/bin || true
+/bin/chmod 750 $WORKING_DIRECTORY/waftlib/build || true
+/bin/chmod 750 $WORKING_DIRECTORY/waftlib/run || true
+/bin/chmod 750 $WORKING_DIRECTORY/waftlib/install || true
+/bin/chmod 750 $WORKING_DIRECTORY/waftlib/initial-database || true
+/bin/chmod 740 $WORKING_DIRECTORY/waftlib/bin/* || true
+/bin/chmod 750 $WORKING_DIRECTORY/common || true
+/bin/chmod 750 $WORKING_DIRECTORY/common/build.d || true
+/bin/chmod 740 $WORKING_DIRECTORY/common/build.d/* || true
+/bin/chmod 750 $WORKING_DIRECTORY/common/conf.d || true
+/bin/chmod -f 640 $WORKING_DIRECTORY/common/conf.d/odoo.cfg || true
+/bin/chmod 750 $WORKING_DIRECTORY/common/entrypoint.d || true
+/bin/chmod 740 $WORKING_DIRECTORY/common/entrypoint.d/* || true
+/bin/chmod 750 $WORKING_DIRECTORY/custom || true
+/bin/chmod 750 $WORKING_DIRECTORY/custom/src || true
+/bin/chmod 750 $WORKING_DIRECTORY/custom/src/private/ || true
+/bin/chmod -f 640 $WORKING_DIRECTORY/custom/src/addons.yaml || true
+/bin/chmod -f 640 $WORKING_DIRECTORY/custom/src/repos.yaml || true
+/bin/chmod 750 $WORKING_DIRECTORY/waftlib/lib || true
+/bin/chmod 750 $WORKING_DIRECTORY/waftlib/doodbalib || true
+/bin/chmod 740 $WORKING_DIRECTORY/waftlib/doodbalib/* || true
+/bin/chmod 640 $WORKING_DIRECTORY/waftlib/templates/* || true
+/bin/chmod -f 600 $WORKING_DIRECTORY/.env-shared || true
+/bin/chmod -f 600 $WORKING_DIRECTORY/.env-secret || true
+/bin/chmod 740 $WORKING_DIRECTORY/bootstrap || true
+/bin/chmod 740 $WORKING_DIRECTORY/build || true
+/bin/chmod 740 $WORKING_DIRECTORY/initial-database || true
+/bin/chmod 740 $WORKING_DIRECTORY/install || true
+/bin/chmod -f 600 $WORKING_DIRECTORY/Pipfile || true
+/bin/chmod -f 600 $WORKING_DIRECTORY/Pipfile.lock || true
+/bin/chmod 740 $WORKING_DIRECTORY/run || true
 
