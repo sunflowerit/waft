@@ -77,7 +77,9 @@ fi
 
 # in .gitignore so not overridable
 cd $WORKING_DIRECTORY/.venv/lib/*/site-packages && \
-/bin/ln -sf ../../../../waftlib/doodbalib
+/bin/mkdir -p doodbalib && \
+cd doodbalib && \
+for f in ../../../../../waftlib/doodbalib/*; do /bin/ln -sf $f; done
 
 cd $WORKING_DIRECTORY/.venv/bin && \
 for f in ../../waftlib/bin/*; do /bin/ln -sf $f; done
