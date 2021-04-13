@@ -83,6 +83,7 @@ for f in ../../../../../waftlib/doodbalib/*; do /bin/ln -sf $f; done
 
 cd $ODOO_WORK_DIR/.venv/bin && \
 for f in ../../waftlib/bin/*; do /bin/ln -sf $f; done
+/bin/rm -fr $ODOO_WORK_DIR/.venv/bin/direxec
 
 # not in .gitignore so overridable
 cd $ODOO_WORK_DIR/common && \
