@@ -11,8 +11,8 @@ LIBRARIES_BRANCH='improve'
 ######                                                    ######
 ################################################################
 
-WORKING_DIRECTORY=$(SCRIPT_PATH= cd -- "$(/usr/bin/dirname "$0")" && /bin/pwd)
-cd $WORKING_DIRECTORY
+ODOO_WORK_DIR=$(SCRIPT_PATH= cd -- "$(/usr/bin/dirname "$0")" && /bin/pwd)
+cd $ODOO_WORK_DIR
 
 if [ ! -f ${PYENV_ROOT:-$HOME/.pyenv}/bin/pyenv ]; then
     cat << "END"
@@ -37,27 +37,27 @@ if [ ! -f $HOME/.local/bin/pipenv ]; then
 fi
 
 /bin/rm -fr waftlib
-/usr/bin/git clone -b $LIBRARIES_BRANCH $LIBRARIES_REPOSITORIES $WORKING_DIRECTORY/waftlib
+/usr/bin/git clone -b $LIBRARIES_BRANCH $LIBRARIES_REPOSITORIES $ODOO_WORK_DIR/waftlib
 
-/usr/bin/touch $WORKING_DIRECTORY/.env-secret
-/bin/mkdir -p $WORKING_DIRECTORY/auto/addons/
-/bin/mkdir -p $WORKING_DIRECTORY/common/build.d/
-/bin/mkdir -p $WORKING_DIRECTORY/common/conf.d/
-/bin/mkdir -p $WORKING_DIRECTORY/common/entrypoint.d/
-/bin/mkdir -p $WORKING_DIRECTORY/custom/src/private/
+/usr/bin/touch $ODOO_WORK_DIR/.env-secret
+/bin/mkdir -p $ODOO_WORK_DIR/auto/addons/
+/bin/mkdir -p $ODOO_WORK_DIR/common/build.d/
+/bin/mkdir -p $ODOO_WORK_DIR/common/conf.d/
+/bin/mkdir -p $ODOO_WORK_DIR/common/entrypoint.d/
+/bin/mkdir -p $ODOO_WORK_DIR/custom/src/private/
 
-if [ ! -f $WORKING_DIRECTORY/Pipfile ]; then
-  /bin/echo "$WORKING_DIRECTORY/Pipfile file not found!"
-  /bin/echo "Copy it from $WORKING_DIRECTORY/waftlib/templates/"
+if [ ! -f $ODOO_WORK_DIR/Pipfile ]; then
+  /bin/echo "$ODOO_WORK_DIR/Pipfile file not found!"
+  /bin/echo "Copy it from $ODOO_WORK_DIR/waftlib/templates/"
   exit 1
 fi
 
-if [ ! -f $WORKING_DIRECTORY/.env-shared ]; then
-    /bin/cp $WORKING_DIRECTORY/waftlib/templates/.env-shared-template $WORKING_DIRECTORY/.env-shared
+if [ ! -f $ODOO_WORK_DIR/.env-shared ]; then
+    /bin/cp $ODOO_WORK_DIR/waftlib/templates/.env-shared-template $ODOO_WORK_DIR/.env-shared
 fi
 
-. $WORKING_DIRECTORY/.env-shared && \
-. $WORKING_DIRECTORY/.env-secret
+. $ODOO_WORK_DIR/.env-shared && \
+. $ODOO_WORK_DIR/.env-secret
 
 if [ $(/bin/echo $ODOO_VERSION | /usr/bin/cut -d'.' -f1) -le '8' ]; then
   /bin/echo "Waft does not support $ODOO_VERSION"
@@ -67,72 +67,72 @@ if [ $(/bin/echo $ODOO_VERSION | /usr/bin/cut -d'.' -f1) -ge '15' ]; then
   /bin/echo "Waft does not support $ODOO_VERSION yet"
 fi
 
-if [ ! -f $WORKING_DIRECTORY/common/conf.d/odoo.cfg ]; then
-  /bin/cp $WORKING_DIRECTORY/waftlib/templates/odoo$ODOO_VERSION.cfg-template $WORKING_DIRECTORY/common/conf.d/odoo.cfg
+if [ ! -f $ODOO_WORK_DIR/common/conf.d/odoo.cfg ]; then
+  /bin/cp $ODOO_WORK_DIR/waftlib/templates/odoo$ODOO_VERSION.cfg-template $ODOO_WORK_DIR/common/conf.d/odoo.cfg
 fi
 
-if [ ! -d $WORKING_DIRECTORY/.venv ]; then
+if [ ! -d $ODOO_WORK_DIR/.venv ]; then
   PIPENV_VENV_IN_PROJECT="enabled" PIPENV_YES="1" $HOME/.local/bin/pipenv install
 fi
 
 # in .gitignore so not overridable
-cd $WORKING_DIRECTORY/.venv/lib/*/site-packages && \
+cd $ODOO_WORK_DIR/.venv/lib/*/site-packages && \
 /bin/mkdir -p doodbalib && \
 cd doodbalib && \
 for f in ../../../../../waftlib/doodbalib/*; do /bin/ln -sf $f; done
 
-cd $WORKING_DIRECTORY/.venv/bin && \
+cd $ODOO_WORK_DIR/.venv/bin && \
 for f in ../../waftlib/bin/*; do /bin/ln -sf $f; done
 
 # not in .gitignore so overridable
-cd $WORKING_DIRECTORY/common && \
+cd $ODOO_WORK_DIR/common && \
 [ ! -e build ] && /bin/ln -sf ../waftlib/bin/direxec build && \
 [ ! -e entrypoint ] && /bin/ln -sf ../waftlib/bin/direxec entrypoint
 
-cd $WORKING_DIRECTORY/common/build.d && \
+cd $ODOO_WORK_DIR/common/build.d && \
 for f in ../../waftlib/build.d/*; do [ ! -e $(/usr/bin/basename $f) ] && /bin/ln -sf $f $(/usr/bin/basename $f); done
 
-cd $WORKING_DIRECTORY/common/entrypoint.d && \
+cd $ODOO_WORK_DIR/common/entrypoint.d && \
 for f in ../../waftlib/entrypoint.d/*; do [ ! -e $(/usr/bin/basename $f) ] && /bin/ln -sf $f $(/usr/bin/basename $f); done
 
-cd $WORKING_DIRECTORY && \
+cd $ODOO_WORK_DIR && \
 [ ! -e build ] && /bin/ln -sf waftlib/build && \
 [ ! -e initial-database ] && /bin/ln -sf waftlib/initial-database && \
 [ ! -e install ] && /bin/ln -sf waftlib/install && \
 [ ! -e run ] && /bin/ln -sf waftlib/run
 
 # set permissions
-/bin/chmod 750 $WORKING_DIRECTORY || true
-/bin/chmod 750 $WORKING_DIRECTORY/auto || true
-/bin/chmod 750 $WORKING_DIRECTORY/auto/addons || true
-/bin/chmod 750 $WORKING_DIRECTORY/waftlib/bin || true
-/bin/chmod 750 $WORKING_DIRECTORY/waftlib/build || true
-/bin/chmod 750 $WORKING_DIRECTORY/waftlib/run || true
-/bin/chmod 750 $WORKING_DIRECTORY/waftlib/install || true
-/bin/chmod 750 $WORKING_DIRECTORY/waftlib/initial-database || true
-/bin/chmod 740 $WORKING_DIRECTORY/waftlib/bin/* || true
-/bin/chmod 750 $WORKING_DIRECTORY/common || true
-/bin/chmod 750 $WORKING_DIRECTORY/common/build.d || true
-/bin/chmod 740 $WORKING_DIRECTORY/common/build.d/* || true
-/bin/chmod 750 $WORKING_DIRECTORY/common/conf.d || true
-/bin/chmod -f 640 $WORKING_DIRECTORY/common/conf.d/odoo.cfg || true
-/bin/chmod 750 $WORKING_DIRECTORY/common/entrypoint.d || true
-/bin/chmod 740 $WORKING_DIRECTORY/common/entrypoint.d/* || true
-/bin/chmod 750 $WORKING_DIRECTORY/custom || true
-/bin/chmod 750 $WORKING_DIRECTORY/custom/src || true
-/bin/chmod 750 $WORKING_DIRECTORY/custom/src/private/ || true
-/bin/chmod -f 640 $WORKING_DIRECTORY/custom/src/addons.yaml || true
-/bin/chmod -f 640 $WORKING_DIRECTORY/custom/src/repos.yaml || true
-/bin/chmod 750 $WORKING_DIRECTORY/waftlib/doodbalib || true
-/bin/chmod 740 $WORKING_DIRECTORY/waftlib/doodbalib/* || true
-/bin/chmod 640 $WORKING_DIRECTORY/waftlib/templates/* || true
-/bin/chmod -f 600 $WORKING_DIRECTORY/.env-shared || true
-/bin/chmod -f 600 $WORKING_DIRECTORY/.env-secret || true
-/bin/chmod 740 $WORKING_DIRECTORY/bootstrap || true
-/bin/chmod 740 $WORKING_DIRECTORY/build || true
-/bin/chmod 740 $WORKING_DIRECTORY/initial-database || true
-/bin/chmod 740 $WORKING_DIRECTORY/install || true
-/bin/chmod -f 600 $WORKING_DIRECTORY/Pipfile || true
-/bin/chmod -f 600 $WORKING_DIRECTORY/Pipfile.lock || true
-/bin/chmod 740 $WORKING_DIRECTORY/run || true
+/bin/chmod 750 $ODOO_WORK_DIR || true
+/bin/chmod 750 $ODOO_WORK_DIR/auto || true
+/bin/chmod 750 $ODOO_WORK_DIR/auto/addons || true
+/bin/chmod 750 $ODOO_WORK_DIR/waftlib/bin || true
+/bin/chmod 750 $ODOO_WORK_DIR/waftlib/build || true
+/bin/chmod 750 $ODOO_WORK_DIR/waftlib/run || true
+/bin/chmod 750 $ODOO_WORK_DIR/waftlib/install || true
+/bin/chmod 750 $ODOO_WORK_DIR/waftlib/initial-database || true
+/bin/chmod 740 $ODOO_WORK_DIR/waftlib/bin/* || true
+/bin/chmod 750 $ODOO_WORK_DIR/common || true
+/bin/chmod 750 $ODOO_WORK_DIR/common/build.d || true
+/bin/chmod 740 $ODOO_WORK_DIR/common/build.d/* || true
+/bin/chmod 750 $ODOO_WORK_DIR/common/conf.d || true
+/bin/chmod -f 640 $ODOO_WORK_DIR/common/conf.d/odoo.cfg || true
+/bin/chmod 750 $ODOO_WORK_DIR/common/entrypoint.d || true
+/bin/chmod 740 $ODOO_WORK_DIR/common/entrypoint.d/* || true
+/bin/chmod 750 $ODOO_WORK_DIR/custom || true
+/bin/chmod 750 $ODOO_WORK_DIR/custom/src || true
+/bin/chmod 750 $ODOO_WORK_DIR/custom/src/private/ || true
+/bin/chmod -f 640 $ODOO_WORK_DIR/custom/src/addons.yaml || true
+/bin/chmod -f 640 $ODOO_WORK_DIR/custom/src/repos.yaml || true
+/bin/chmod 750 $ODOO_WORK_DIR/waftlib/doodbalib || true
+/bin/chmod 740 $ODOO_WORK_DIR/waftlib/doodbalib/* || true
+/bin/chmod 640 $ODOO_WORK_DIR/waftlib/templates/* || true
+/bin/chmod -f 600 $ODOO_WORK_DIR/.env-shared || true
+/bin/chmod -f 600 $ODOO_WORK_DIR/.env-secret || true
+/bin/chmod 740 $ODOO_WORK_DIR/bootstrap || true
+/bin/chmod 740 $ODOO_WORK_DIR/build || true
+/bin/chmod 740 $ODOO_WORK_DIR/initial-database || true
+/bin/chmod 740 $ODOO_WORK_DIR/install || true
+/bin/chmod -f 600 $ODOO_WORK_DIR/Pipfile || true
+/bin/chmod -f 600 $ODOO_WORK_DIR/Pipfile.lock || true
+/bin/chmod 740 $ODOO_WORK_DIR/run || true
 
