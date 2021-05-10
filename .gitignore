@@ -10,3 +10,4 @@ logfile/
 !/custom/src/addons.yaml
 !custom/src/repos.yaml
 Pipfile.lock
+.pyenv
