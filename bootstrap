@@ -2,7 +2,7 @@
 
 set -e
 
-LIBRARIES_REPOSITORIES='git@sfithub.com:sunflowerit/sfoil.git'
+LIBRARIES_REPOSITORIES='git@sfithub.com:sunflowerit/waft.git'
 LIBRARIES_BRANCH='master'
 
 ################################################################
