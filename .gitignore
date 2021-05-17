@@ -11,5 +11,3 @@ logfile/
 !custom/src/repos.yaml
 Pipfile.lock
 .pyenv
-common/*
-!common/conf.d/odoo.cfg
