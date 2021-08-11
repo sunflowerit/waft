@@ -12,3 +12,7 @@ logfile/
 Pipfile.lock
 .pyenv
 pipenv
+.slide
+migrate-backup
+migrate-logfiles
+migrate-temporary
