@@ -2,7 +2,7 @@
 
 set -e
 
-LIBRARIES_REPOSITORIES='git@github.com:sunflowerit/waftlib.git'
+LIBRARIES_REPOSITORIES='https://github.com/sunflowerit/waftlib.git'
 LIBRARIES_BRANCH='master'
 
 ################################################################
