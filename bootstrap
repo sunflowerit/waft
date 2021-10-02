@@ -3,7 +3,7 @@
 set -e
 
 export LIBRARIES_REPOSITORIES='https://github.com/sunflowerit/waftlib.git'
-export LIBRARIES_VERSION_BRANCH='v.21.09.22' #versions: v.21.05.10, v.21.09.22
+export LIBRARIES_VERSION_BRANCH=${LIBRARIES_VERSION_BRANCH:-v.21.05.10} #versions: v.21.05.10, v.21.09.22
 
 ################################################################
 ######                                                    ######
