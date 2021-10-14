@@ -3,7 +3,7 @@
 set -e
 
 export LIBRARIES_REPOSITORIES='https://github.com/sunflowerit/waftlib.git'
-export LIBRARIES_VERSION_BRANCH=${LIBRARIES_VERSION_BRANCH:-master} #versions: v.21.05.10, master
+export LIBRARIES_VERSION_BRANCH=${LIBRARIES_VERSION_BRANCH:-v.21.09.22} #versions: v.21.05.10, v.21.09.22
 
 ################################################################
 ######                                                    ######
@@ -18,7 +18,7 @@ cd $ODOO_WORK_DIR
 /bin/echo "INFO: Remove exist $ODOO_WORK_DIR/waftlib"
 /bin/rm -fr $ODOO_WORK_DIR/waftlib
 /bin/echo "INFO: Clone $LIBRARIES_REPOSITORIES to $ODOO_WORK_DIR/waftlib"
-/usr/bin/git clone -b $LIBRARIES_VERSION_BRANCH $LIBRARIES_REPOSITORIES $ODOO_WORK_DIR/waftlib || \
+/usr/bin/git clone -b $LIBRARIES_VERSION_BRANCH $LIBRARIES_REPOSITORIES $ODOO_WORK_DIR/waftlib 2> /dev/null || \
 /usr/bin/git clone -b master $LIBRARIES_REPOSITORIES $ODOO_WORK_DIR/waftlib
 
 /bin/echo "INFO: Run $ODOO_WORK_DIR/waftlib/bootstrap script"
