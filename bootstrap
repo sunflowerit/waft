@@ -20,7 +20,6 @@ cd $ODOO_WORK_DIR
 /bin/echo "INFO: Clone $LIBRARIES_REPOSITORIES to $ODOO_WORK_DIR/waftlib"
 /usr/bin/git clone -b $LIBRARIES_VERSION_BRANCH $LIBRARIES_REPOSITORIES $ODOO_WORK_DIR/waftlib 2> /dev/null || \
 /usr/bin/git clone -b master $LIBRARIES_REPOSITORIES $ODOO_WORK_DIR/waftlib
-/bin/chmod -R -w $ODOO_WORK_DIR/waftlib
 
 /bin/echo "INFO: Run $ODOO_WORK_DIR/waftlib/bootstrap script"
 $ODOO_WORK_DIR/waftlib/bootstrap
