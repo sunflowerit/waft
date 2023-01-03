@@ -5,9 +5,10 @@ logfile/
 .env
 .env-secret
 .venv
-/custom/src/*
-!/custom/src/.gitkeep
-!/custom/src/addons.yaml
+common/conf.d/test-odoo.cfg
+custom/src/*
+!custom/src/.gitkeep
+!custom/src/addons.yaml
 !custom/src/repos.yaml
 Pipfile.lock
 .pyenv
