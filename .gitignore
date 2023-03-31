@@ -11,6 +11,7 @@ logfile
 migrate-backup
 migrate-logfiles
 migrate-temporary
+*.pyc
 .pyenv
 .slide
 .venv
