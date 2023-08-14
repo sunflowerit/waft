@@ -5,7 +5,7 @@ set -e
 
 export LIBRARIES_REPOSITORIES='https://github.com/sunflowerit/waftlib.git'
 # Libraries version branches: v.21.05.10, v.21.09.22, v.22.05.30, v.23.08.03
-export LIBRARIES_VERSION_BRANCH="${LIBRARIES_VERSION_BRANCH:v.23.08.03}"
+export LIBRARIES_VERSION_BRANCH="${LIBRARIES_VERSION_BRANCH:-v.23.08.03}"
 
 ################################################################
 ######                                                    ######
