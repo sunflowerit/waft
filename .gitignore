@@ -20,11 +20,14 @@ migration/*/custom/src/*
 migration/*/datadir
 migration/*/.env
 migration/*/.env-secret
+migration/*/.gitignore
+migration/*/LICENSE
 migration/*/logfile
 migration/*/migrate-backup
 migration/*/migrate-logfiles
 migration/*/migrate-temporary
 migration/*/progress.json
+migration/*/README.md
 migration/*/*.pyc
 migration/*/.pyenv
 migration/*/.slide
