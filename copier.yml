@@ -1,4 +1,4 @@
-exclude:
+_skip_if_exists:
   - README.md  # people need to fill this for themselves
 
 # questions
