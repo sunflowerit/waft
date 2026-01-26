@@ -1,5 +1,47 @@
-# Waft Odoo installation method
+# Waft project template
 
-Waft is a wrapper for installing [Odoo](https://github.com/odoo/odoo).
+This repository is the template project for Waft.
 
-For documentation, please see the accompanying [waftlib](https://github.com/sunflowerit/waftlib)
+## Creating a new project
+
+You can start a new Waft/Odoo project based on this template by using [copier](https://copier.readthedocs.io).
+
+    copier copy https://github.com/sunflowerit/waftlib/templates/project
+ 
+This will ask you for the Odoo and waftlib versions to use, then set up the project.
+ 
+Select an Odoo version that you want to use, for example 18.0.
+
+When you are happy, push the project somewhere you like:
+
+```
+git init
+git remote add git@org:repo.git
+git add .
+git commit -m "[ADD] initial project set up"
+git push
+```
+
+## Updating to a newer project template version
+
+If you want to update a project to the newest version of the template, you can use:
+
+```
+copier update
+```
+
+Copier will then check back in with `github.com/sunflowerit/waft` and update any files to its newest template, and run migration scripts if they exist.
+
+If any project files have be edited locally, copier will not replace the files but show a conflict that you can solve.
+
+Once happy you can push the updates to your project repository:
+
+```
+git add .
+git commit -m "[UPD] waft to newer version"
+git push
+```
+
+## Using waft features
+
+Please see the [main waftlib README](https://github.com/sunflowerit/waftlib).
