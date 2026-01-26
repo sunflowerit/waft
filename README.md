@@ -6,7 +6,7 @@ This repository is the template project for Waft.
 
 You can start a new Waft/Odoo project based on this template by using [copier](https://copier.readthedocs.io).
 
-    copier copy https://github.com/sunflowerit/waftlib/templates/project
+    copier copy https://github.com/sunflowerit/waft [--vcs-ref use-copier] myproject
  
 This will ask you for the Odoo and waftlib versions to use, then set up the project.
  
@@ -27,7 +27,8 @@ git push
 If you want to update a project to the newest version of the template, you can use:
 
 ```
-copier update
+cd myproject
+copier update [--vcs-ref use-copier]
 ```
 
 Copier will then check back in with `github.com/sunflowerit/waft` and update any files to its newest template, and run migration scripts if they exist.
