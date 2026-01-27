@@ -1,6 +1,11 @@
 _skip_if_exists:
   - README.md  # people need to fill this for themselves
 
+_migrations:
+  - version: "v1.0.0"
+    when: "{{ _stage == 'before' }}"
+    command: ["{{ _copier_python }}", _copier/detect-versions.py]
+
 # questions
 odoo_version:
     type: str
