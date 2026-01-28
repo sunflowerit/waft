@@ -23,7 +23,7 @@ _jinja_extensions:
 odoo_version:
     type: str
     help: What Odoo version should this project have?
-    default: {{ default_odoo_version }}
+    #default: {{ default_odoo_version }}
     choices:
       - '19.0'
       - '18.0'
@@ -41,7 +41,7 @@ odoo_version:
 waftlib_version:
     type: str
     help: Which version of Waftlib should this project use?
-    default: {{ default_waft_version }}
+    #default: {{ default_waft_version }}
     choices:
       - v.22.05.30
       - v.21.09.22
