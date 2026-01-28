@@ -1,10 +1,16 @@
 _skip_if_exists:
   - README.md  # people need to fill this for themselves
 
-_migrations:
-  - version: "v1.0.0"
-    when: "{{ _stage == 'before' }}"
-    command: ["{{ _copier_python }}", _copier/detect-versions.py]
+# use contextupdater plugin (requires --trust)
+_jinja_extensions:
+    - copier_templates_extensions.TemplateExtensionLoader
+    - _copier/context.py:ContextUpdater
+
+# migrations (requires --trust)
+#_migrations:
+#  - version: "v1.0.0"
+#    when: "{{ _stage == 'before' }}"
+#    command: ["{{ _copier_python }}", _copier/detect-versions.py]
 
 #_tasks:
 #  - when: "{{ _copier_operation == 'copy' }}"
