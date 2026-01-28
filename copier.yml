@@ -41,7 +41,7 @@ odoo_version:
 waftlib_version:
     type: str
     help: Which version of Waftlib should this project use?
-    default: '{{ default_waft_version }}'
+    default: '{{ default_waftlib_version }}'
     choices:
       - 'v.22.05.30'
       - 'v.21.09.22'
