@@ -2,9 +2,26 @@
 
 This repository is the template project for Waft.
 
-## Creating a new project
+## Installing copier
 
 You can start a new Waft/Odoo project based on this template by using [copier](https://copier.readthedocs.io).
+
+Copier and a plugin first need to be installed as a tool on your system.
+
+```
+pipx install copier
+pipx inject copier copier-template-extensions
+```
+
+or
+
+```
+uv tool install copier --with copier-template-extensions
+```
+
+## Creating a new project
+
+You can now use copier to clone this template Waft project into your own:
 
     copier copy https://github.com/sunflowerit/waft --trust --vcs-ref use-copier myproject
  
