@@ -39,4 +39,5 @@ class ContextUpdater(ContextHook):
             context_updates["default_waftlib_version"] = self.waftlib_version
             context_updates["default_odoo_version"] = self.odoo_version
             self.detection_run = True
+        print(context_updates)
         return context_updates
