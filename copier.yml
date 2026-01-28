@@ -4,7 +4,7 @@ _skip_if_exists:
 # use contextupdater plugin (requires --trust)
 _jinja_extensions:
     - copier_templates_extensions.TemplateExtensionLoader
-    - _copier/contexxt.py:ContextUpdater
+    - extensions/contexxt.py:ContextUpdater
 
 # migrations (requires --trust)
 #_migrations:
