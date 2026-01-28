@@ -1,4 +1,5 @@
-_min_copier_version: 9.6  # because of context phases
+# min version: 9.6, for supporting context phases
+_min_copier_version: '9.6'
 
 _skip_if_exists:
   - README.md  # people need to fill this for themselves
