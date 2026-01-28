@@ -29,8 +29,8 @@ class ContextUpdater(ContextHook):
         context_updates = {}
 
         print(context["_copier_phase"])
-        print(context["default_waft_version"])
-        print(context["default_odoo_version"])
+        print(context.get("default_waft_version"))
+        print(context.get("default_odoo_version"))
         if not self.detection_run:
             print("Trying to detect waftlib version from bootstrap file...")
             waftlib_version = self._detect_waft_version()
