@@ -43,10 +43,10 @@ waftlib_version:
     help: Which version of Waftlib should this project use?
     default: '{{ default_waft_version }}'
     choices:
-      - v.22.05.30
-      - v.21.09.22
-      - v.21.05.10
-      - master
+      - 'v.22.05.30'
+      - 'v.21.09.22'
+      - 'v.21.05.10'
+      - 'master'
 
 _message_after_copy: |
 
