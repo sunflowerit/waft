@@ -1,0 +1,65 @@
+# min version: 9.6, for supporting context phases
+_min_copier_version: '9.6'
+
+_skip_if_exists:
+  - README.md  # people need to fill this for themselves
+
+# use contextupdater plugin (requires --trust)
+_jinja_extensions:
+    - copier_templates_extensions.TemplateExtensionLoader
+    - _copier/context.py:ContextUpdater
+
+# migrations (requires --trust)
+#_migrations:
+#  - version: "v1.0.0"
+#    when: "{{ _stage == 'before' }}"
+#    command: ["{{ _copier_python }}", _copier/detect-versions.py]
+
+#_tasks:
+#  - when: "{{ _copier_operation == 'copy' }}"
+#    command: ["{{ _copier_python }}", _copier/detect-versions.py]
+
+# questions
+odoo_version:
+    type: str
+    help: What Odoo version should this project have?
+    default: '{{ default_odoo_version }}'
+    choices:
+      - '19.0'
+      - '18.0'
+      - '17.0'
+      - '16.0'
+      - '15.0'
+      - '14.0'
+      - '13.0'
+      - '12.0'
+      - '11.0'
+      - '10.0'
+      - '9.0'
+      - '8.0'
+
+waftlib_version:
+    type: str
+    help: Which version of Waftlib should this project use?
+    default: '{{ default_waftlib_version }}'
+    choices:
+      - 'v.22.05.30'
+      - 'v.21.09.22'
+      - 'v.21.05.10'
+      - 'master'
+
+_message_after_copy: |
+
+    Your Waft project with Odoo {{ odoo_version }} has been created successfully!
+
+    Next steps:
+
+    1. Change directory to the project root:
+
+       $ cd {{ _copier_conf.dst_path }}
+
+    2. Run bootstrap:
+
+       $ ./bootstrap
+
+    3. Read the documentation on how to build Odoo
