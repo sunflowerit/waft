@@ -1,3 +1,5 @@
+import re
+
 from copier_template_extensions import ContextHook
 
 
@@ -20,4 +22,3 @@ class ContextUpdater(ContextHook):
                     _match = re.search(pattern, line)
                     if _match:
                         context["default_odoo_version"] = _match.group(1)
-
