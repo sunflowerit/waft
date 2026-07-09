@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waft"
+description = "An Odoo installation and project-management tool (successor of Therp/waft + Therp/waftlib)"
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+requires-python = ">=3.10"
+dynamic = ["version"]
+authors = [{ name = "Therp BV" }]
+dependencies = [
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff",
+    "black",
+    "pre-commit",
+]
+
+[project.scripts]
+waft = "waft.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "waft.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+# OCA standard: black default line length
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.black]
+# black default (88), as used by OCA's pre-commit configuration
+target-version = ["py310"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
