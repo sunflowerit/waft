@@ -24,7 +24,7 @@ GITIGNORE = """\
 .waft/log/
 .tmp/
 .venv/
-/odoo/
+/addons/odoo/
 __pycache__/
 *.pyc
 """
@@ -156,9 +156,66 @@ def _migration_2(project: Project) -> None:
         project.gitignore.write_text(text + "/odoo/\n", encoding="utf-8")
 
 
+def _rewrite_gitignore(project: Project, drop: list[str], add: str) -> None:
+    lines = (
+        project.gitignore.read_text(encoding="utf-8").splitlines()
+        if project.gitignore.is_file()
+        else []
+    )
+    lines = [line for line in lines if line.strip() not in drop]
+    if add not in [line.strip() for line in lines]:
+        lines.append(add)
+    project.gitignore.write_text(
+        "".join(f"{line}\n" for line in lines), encoding="utf-8"
+    )
+
+
+def _migration_3(project: Project) -> None:
+    """Format 3 (superseded by format 4): sources lived in .src/."""
+    _rewrite_gitignore(project, ["/odoo/"], ".src/")
+
+
+def _migration_4(project: Project) -> None:
+    """Format 4: Odoo checkout in addons/odoo/, addon repos in .tmp/repos/."""
+    project.addons_dir.mkdir(parents=True, exist_ok=True)
+    legacy_src = project.root / ".src"
+    candidates = [project.root / "odoo"]  # format 1/2 layout
+    if legacy_src.is_dir():
+        candidates.insert(0, legacy_src / "odoo")
+    for legacy_odoo in candidates:
+        if legacy_odoo.is_dir() and not project.odoo_dir.exists():
+            legacy_odoo.rename(project.odoo_dir)
+    if legacy_src.is_dir():
+        repos = project.tmp_dir / "repos"
+        repos.mkdir(parents=True, exist_ok=True)
+        for repo in sorted(legacy_src.iterdir()):
+            destination = repos / repo.name
+            if not destination.exists():
+                repo.rename(destination)
+        if not any(legacy_src.iterdir()):
+            legacy_src.rmdir()
+    # The editable Odoo install and the addon links point at the old paths.
+    for stale_state in (
+        project.data_dir / "odoo-installed",
+        project.data_dir / "addon-links",
+        project.data_dir / "addon-links.json",
+    ):
+        if stale_state.is_file():
+            stale_state.unlink()
+    if project.addons_dir.is_dir():
+        for child in project.addons_dir.iterdir():
+            if child.is_symlink() and not child.exists():
+                child.unlink()
+    _rewrite_gitignore(project, ["/odoo/", ".src/"], "/addons/odoo/")
+
+
 #: Ordered project-format migrations: {target_format: callable(project)}.
 #: A migration upgrades a project from target_format - 1 to target_format.
-MIGRATIONS: dict[int, callable] = {2: _migration_2}
+MIGRATIONS: dict[int, callable] = {
+    2: _migration_2,
+    3: _migration_3,
+    4: _migration_4,
+}
 
 
 def apply_migrations(project: Project) -> list[int]:

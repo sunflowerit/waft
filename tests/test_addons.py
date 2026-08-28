@@ -237,6 +237,17 @@ def test_addon_add_infers_kind_and_lists(project, capsys):
     assert "oca-web" in out and "git" in out
 
 
+def test_addon_add_rejects_reserved_odoo_name(project):
+    with pytest.raises(WaftError, match="reserved for the Odoo source"):
+        addons.addon_add(project, "odoo", {"url": "https://x/odoo.git"})
+
+
+def test_addon_list_ignores_odoo_checkout(project, capsys):
+    (project.odoo_dir / "odoo").mkdir(parents=True)
+    addons.addon_list(project)
+    assert "no addons configured" in capsys.readouterr().out
+
+
 def test_addon_configure_and_delete(project):
     addons.addon_add(project, "oca-web", {"url": "https://x/web.git"})
     addons.addon_configure(project, "oca-web", {"branch": "17.0"})

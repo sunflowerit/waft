@@ -2,30 +2,13 @@
 
 Addon configuration lives under the ADDONS key of .waft/conf/shared.yml
 (secret.yml can override an entry, or disable one by setting it to null).
-Entry kinds:
+Entry kinds: git, pypi, link, directory.
 
-.. code-block:: yaml
-
-    ADDONS:
-      oca-web:                       # entry name (repo alias or addon name)
-        kind: git
-        url: https://github.com/OCA/web.git
-        branch: ${ODOO_VERSION}      # default; any config var can be used
-        merges:                      # optional; git-aggregator semantics
-          - origin ${ODOO_VERSION}
-          - origin refs/pull/1234/head
-        depth: 1                     # optional; WAFT_DEPTH_* defaults
-        addons: ["web_responsive"]   # globs of addons to link; default ["*"]
-      queue-job:
-        kind: pypi
-        spec: odoo-addon-queue_job==16.0.*
-      partner-custom:
-        kind: link
-        path: ../dev/partner-custom  # relative to the project root
+Git repositories are cloned into .tmp/repos/<entry>/; the selected addons
+are symlinked into addons/, the single addons_path. The Odoo source
+checkout itself lives in addons/odoo/ (see waft.source).
 
 Plain addon directories inside addons/ need no configuration at all.
-`waft sync` fetches git repos into .tmp/repos/, installs pypi addons into
-the venv, and links everything into addons/ (the single addons_path).
 """
 
 from __future__ import annotations
@@ -248,6 +231,8 @@ def addon_list(project: Project) -> int:
         for child in sorted(project.addons_dir.iterdir()):
             if child.name in seen or child.name.startswith("."):
                 continue
+            if child == project.odoo_dir:  # the Odoo source checkout
+                continue
             if child.is_symlink():
                 rows.append((child.name, "linked", os.readlink(child)))
             elif child.is_dir() and has_manifest(child):
@@ -277,6 +262,11 @@ def addon_add(project: Project, name: str, options: dict) -> int:
     if name in load_entries(project):
         raise WaftError(
             f"addon entry {name!r} already exists; use --config to change it"
+        )
+    if name == project.odoo_dir.name:
+        raise WaftError(
+            f"{name!r} is reserved for the Odoo source checkout in "
+            f"{project.addons_dir}"
         )
     options = dict(options)
     options.setdefault("kind", _infer_kind(options))

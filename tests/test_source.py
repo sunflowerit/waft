@@ -27,6 +27,11 @@ def have_uv(monkeypatch):
     monkeypatch.setattr(venv_mod.shutil, "which", lambda name: f"/usr/bin/{name}")
 
 
+def test_source_lives_in_addons(tmp_path):
+    project = init_project(tmp_path, "16.0")
+    assert source.odoo_source_dir(project) == project.root / "addons" / "odoo"
+
+
 def test_clone_when_missing(tmp_path, calls, have_uv):
     project = init_project(tmp_path, "16.0")
     cfg = load_config(project)

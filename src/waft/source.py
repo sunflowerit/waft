@@ -18,7 +18,7 @@ from .venv import _run, run_pip
 
 
 def odoo_source_dir(project: Project) -> Path:
-    return project.root / "odoo"
+    return project.odoo_dir
 
 
 def _marker(project: Project) -> Path:
@@ -31,6 +31,7 @@ def ensure_odoo_source(project: Project, cfg: dict[str, str]) -> None:
     if (src / ".git").is_dir():
         _run(["git", "-C", src, "pull", "--ff-only"])
         return
+    src.parent.mkdir(parents=True, exist_ok=True)
     _run(
         [
             "git",

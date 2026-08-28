@@ -63,6 +63,11 @@ class Project:
         return self.root / ".tmp"
 
     @property
+    def odoo_dir(self) -> Path:
+        """The Odoo source checkout, inside the addons path."""
+        return self.addons_dir / "odoo"
+
+    @property
     def venv_dir(self) -> Path:
         return self.root / ".venv"
 

@@ -81,9 +81,16 @@ def load_config(project: Project) -> dict[str, str]:
 
 
 def computed_vars(project: Project) -> dict[str, str]:
-    """WAFT_* variables computed by waft itself, usable in ${...} references."""
+    """WAFT_* variables computed by waft itself, usable in ${...} references.
+
+    The addons path lists the project's addons/ directory plus the standard
+    modules shipped inside the Odoo checkout (addons/odoo/addons), which are
+    not importable through the installed odoo package.
+    """
     return {
-        "WAFT_ADDONS_PATH": str(project.addons_dir),
+        "WAFT_ADDONS_PATH": ",".join(
+            [str(project.addons_dir), str(project.odoo_dir / "addons")]
+        ),
         "WAFT_DATA_DIR": str(project.odoo_data_dir),
         "WAFT_LOG_DIR": str(project.log_dir),
         "WAFT_ROOT": str(project.root),

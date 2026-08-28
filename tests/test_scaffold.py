@@ -40,7 +40,7 @@ def test_init_gitignore_and_stamp(tmp_path):
         ".waft/log/",
         ".tmp/",
         ".venv/",
-        "/odoo/",
+        "/addons/odoo/",
     ):
         assert entry in gitignore
     assert read_version_stamp(project) == PROJECT_FORMAT
@@ -75,16 +75,48 @@ def test_read_stamp_missing(tmp_path):
         read_version_stamp(Project(tmp_path))
 
 
-def test_migration_2_adds_odoo_to_gitignore(tmp_path):
+def test_migration_from_format_1(tmp_path):
+    """Format 1 layout (odoo/ at the root) upgrades to addons/odoo/."""
     project = init_project(tmp_path, "16.0")
-    # simulate a format-1 project that predates the /odoo/ ignore entry
     project.version_file.write_text("format: 1\nwaft: 0.0.1\n")
-    text = project.gitignore.read_text().replace("/odoo/\n", "")
-    project.gitignore.write_text(text)
+    project.gitignore.write_text(
+        project.gitignore.read_text().replace("/addons/odoo/\n", "")
+    )
+    legacy_odoo = project.root / "odoo"
+    (legacy_odoo / "odoo").mkdir(parents=True)
+    (project.data_dir / "odoo-installed").parent.mkdir(parents=True, exist_ok=True)
+    (project.data_dir / "odoo-installed").write_text("deadbeef\n")
+    (project.addons_dir / "gone").symlink_to("../.tmp/repos/x/gone")
+
     applied = apply_migrations(project)
-    assert applied == [2]
-    assert "/odoo/" in project.gitignore.read_text().splitlines()
+    assert applied == [2, 3, 4]
+    assert (project.odoo_dir / "odoo").is_dir()
+    assert not legacy_odoo.exists()
+    # the editable install pointed at the old path
+    assert not (project.data_dir / "odoo-installed").exists()
+    assert not (project.addons_dir / "gone").is_symlink()  # dangling link removed
+    gitignore = project.gitignore.read_text().splitlines()
+    assert "/addons/odoo/" in gitignore
+    assert "/odoo/" not in gitignore and ".src/" not in gitignore
     assert read_version_stamp(project) == PROJECT_FORMAT
-    # re-running is a no-op and must not duplicate the entry
+    # re-running is a no-op and must not duplicate entries
     assert apply_migrations(project) == []
-    assert project.gitignore.read_text().splitlines().count("/odoo/") == 1
+    assert project.gitignore.read_text().splitlines().count("/addons/odoo/") == 1
+
+
+def test_migration_from_format_3(tmp_path):
+    """Format 3 layout (.src/) upgrades to addons/odoo + .tmp/repos."""
+    project = init_project(tmp_path, "16.0")
+    project.version_file.write_text("format: 3\nwaft: 0.0.1\n")
+    src = project.root / ".src"
+    (src / "odoo" / "odoo").mkdir(parents=True)
+    (src / "oca-web" / "web_a").mkdir(parents=True)
+    (project.data_dir / "addon-links.json").parent.mkdir(parents=True, exist_ok=True)
+    (project.data_dir / "addon-links.json").write_text('{"web_a": {"mode": "soft"}}')
+
+    assert apply_migrations(project) == [4]
+    assert (project.odoo_dir / "odoo").is_dir()
+    assert (project.tmp_dir / "repos" / "oca-web" / "web_a").is_dir()
+    assert not src.exists()
+    assert not (project.data_dir / "addon-links.json").exists()
+    assert "/addons/odoo/" in project.gitignore.read_text().splitlines()

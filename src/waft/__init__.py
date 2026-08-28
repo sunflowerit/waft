@@ -8,4 +8,6 @@ __version__ = "0.1.0.dev0"
 #: Project directory format version. Bump when `waft init` output changes in a
 #: way that requires a migration step in `waft sync` (see waft.scaffold).
 #: Format 2: the Odoo source checkout lives in /odoo/ (git-ignored).
-PROJECT_FORMAT = 2
+#: Format 3: all sources live in .src/ (Odoo checkout + addon repo clones).
+#: Format 4: the Odoo checkout lives in addons/odoo/; addon repos in .tmp/repos/.
+PROJECT_FORMAT = 4
