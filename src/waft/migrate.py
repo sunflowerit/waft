@@ -23,10 +23,9 @@ import json
 
 from . import addons as addons_mod
 from . import config as config_mod
-from . import database
+from . import database, versions
 from . import source as source_mod
 from . import venv as venv_mod
-from . import versions
 from .project import Project, WaftError
 from .venv import _run
 
@@ -74,6 +73,7 @@ def parse_args(argv: list[str]):
 # ----------------------------------------------------------------- progress
 def progress_file(project: Project):
     return project.data_dir / "migration-progress.json"
+
 
 def load_progress(project: Project) -> dict:
     path = progress_file(project)
@@ -239,12 +239,10 @@ def ensure_step_project(project: Project, version: str, cfg: dict[str, str]):
     else:
         if "openupgrade" not in addons_mod.load_entries(step):
             addons_mod.addon_add(
-                step,
-                "openupgrade",
-                {"url": OPENUPGRADE_REPO, "addons": ["openupgrade_*"]},
+                step, "openupgrade", {"install": "clone", "url": OPENUPGRADE_REPO}
             )
         openupgrade_scripts = (
-            step.tmp_dir / "repos" / "openupgrade" / "openupgrade_scripts" / "scripts"
+            step.addons_dir / "openupgrade" / "openupgrade_scripts" / "scripts"
         )
     step_cfg = config_mod.load_config(step)
     venv_mod.ensure_venv(step, step_cfg)

@@ -170,16 +170,14 @@ def cmd_odoo_config_test(args) -> int:
 def _addon_options(args) -> dict:
     """Collect addon source options from CLI flags into an ADDONS mapping."""
     options: dict = {}
-    for key in ("kind", "url", "branch", "depth", "path", "spec"):
+    for key in ("install", "url", "branch", "depth", "path", "spec"):
         value = getattr(args, f"addon_{key}")
         if value:
             options[key] = value
     if args.addon_merge:
         options["merges"] = list(args.addon_merge)
-    if args.addon_addons:
-        options["addons"] = [
-            glob.strip() for glob in args.addon_addons.split(",") if glob.strip()
-        ]
+    if args.addon_gitignore is not None:
+        options["gitignore"] = args.addon_gitignore
     return options
 
 
@@ -324,21 +322,26 @@ def build_parser() -> argparse.ArgumentParser:
     p = cfg_sub.add_parser("test", help="validate the configuration files")
     p.set_defaults(func=cmd_odoo_config_test)
 
-    p = odoo_sub.add_parser("addon", help="manage addons")
-    p.add_argument("-a", "--add", metavar="NAME", help="add an addon entry")
-    p.add_argument("-d", "--delete", metavar="NAME", help="delete an addon entry")
+    p = odoo_sub.add_parser("addon", help="declare and manage addons")
+    p.add_argument("-a", "--add", metavar="NAME", help="declare an addon entry")
+    p.add_argument("-d", "--delete", metavar="NAME", help="remove an addon entry")
     p.add_argument(
-        "-u", "--update", metavar="NAME", help="update an addon from its source"
+        "-u", "--update", metavar="NAME", help="refresh an entry from its source"
     )
-    p.add_argument("-c", "--config", metavar="NAME", help="configure the addon source")
-    p.add_argument("-l", "--list", action="store_true", help="list configured addons")
+    p.add_argument("-c", "--config", metavar="NAME", help="reconfigure an entry")
+    p.add_argument("-l", "--list", action="store_true", help="list declared addons")
     p.add_argument(
-        "--kind",
-        dest="addon_kind",
-        choices=addons_mod.KINDS,
-        help="source kind (inferred from --url/--spec/--path when omitted)",
+        "-t",
+        "--installation-type",
+        dest="addon_install",
+        choices=addons_mod.INSTALL_TYPES,
+        help="clone (fetch a repository), pypi (pip install into the venv) or "
+        "source (add its directory to addons_path); inferred from "
+        "--url/--spec when omitted",
     )
-    p.add_argument("--url", dest="addon_url", help="git repository URL (kind git)")
+    p.add_argument(
+        "--url", dest="addon_url", help="git repository URL (installation type clone)"
+    )
     p.add_argument(
         "--branch", dest="addon_branch", help="git branch; default ${ODOO_VERSION}"
     )
@@ -351,14 +354,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--depth", dest="addon_depth", help="git clone/fetch depth")
     p.add_argument(
-        "--addons",
-        dest="addon_addons",
-        metavar="GLOB[,GLOB...]",
-        help="addons to link from the repo (kind git); default all",
+        "--path",
+        dest="addon_path",
+        help="directory of the addon or clone, e.g. addons/addons-example/addony",
     )
-    p.add_argument("--path", dest="addon_path", help="directory to link (kind link)")
     p.add_argument(
-        "--spec", dest="addon_spec", help="PyPI requirement spec (kind pypi)"
+        "--spec",
+        dest="addon_spec",
+        help="pip requirement for installation type pypi; any form pip or pipx "
+        "accepts, including a browser URL like "
+        "https://host/org/repo/tree/BRANCH/addons/addon",
+    )
+    p.add_argument(
+        "--gitignore",
+        dest="addon_gitignore",
+        action="store_true",
+        default=None,
+        help="keep this directory out of git (default for clones)",
+    )
+    p.add_argument(
+        "--no-gitignore",
+        dest="addon_gitignore",
+        action="store_false",
+        help="track this directory in the project repository",
     )
     p.set_defaults(func=cmd_odoo_addon)
 

@@ -6,7 +6,7 @@ import yaml
 from waft import addons
 from waft import venv as venv_mod
 from waft.cli import main
-from waft.config import load_config
+from waft.config import load_config, render_odoo_conf
 from waft.project import WaftError
 from waft.scaffold import init_project
 
@@ -39,42 +39,86 @@ def _set_addons(project, mapping):
     project.shared_yml.write_text(yaml.safe_dump(data))
 
 
-def _fake_repo(project, entry_name, addon_names):
-    repo = project.tmp_dir / "repos" / entry_name
-    (repo / ".git").mkdir(parents=True)
-    for name in addon_names:
-        addon = repo / name
-        addon.mkdir()
-        (addon / "__manifest__.py").write_text("{}")
-    return repo
+def _make_addon(directory):
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "__manifest__.py").write_text("{}")
+    return directory
 
 
-# ---------------------------------------------------------------- entries
-def test_load_entries_kinds(project):
+# ------------------------------------------------------------------- specs
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # browser URL with branch and subdirectory
+        (
+            "https://github.com/example/addons-example/tree/a-branch/addons/addon",
+            "git+https://github.com/example/addons-example"
+            "@a-branch#subdirectory=addons/addon",
+        ),
+        # trailing .git on the subdirectory is tolerated
+        (
+            "https://github.com/example/addons-example/tree/16.0/addons/addon.git",
+            "git+https://github.com/example/addons-example"
+            "@16.0#subdirectory=addons/addon",
+        ),
+        # GitLab's /-/tree/ form
+        (
+            "https://gitlab.com/org/repo/-/tree/15.0/sub",
+            "git+https://gitlab.com/org/repo@15.0#subdirectory=sub",
+        ),
+        # ssh form
+        (
+            "git@github.com:example/addons-example/tree/a-branch/addons/addon.git",
+            "git+ssh://git@github.com/example/addons-example"
+            "@a-branch#subdirectory=addons/addon",
+        ),
+        # branch without a subdirectory
+        (
+            "https://github.com/example/repo/tree/16.0",
+            "git+https://github.com/example/repo@16.0",
+        ),
+        # anything pip already understands is untouched
+        ("odoo-addon-queue_job==16.0.*", "odoo-addon-queue_job==16.0.*"),
+        (
+            "git+https://github.com/o/r@16.0#subdirectory=x",
+            "git+https://github.com/o/r@16.0#subdirectory=x",
+        ),
+        ("https://github.com/example/repo.git", "https://github.com/example/repo.git"),
+    ],
+)
+def test_normalize_spec(raw, expected):
+    assert addons.normalize_spec(raw) == expected
+
+
+# ----------------------------------------------------------------- entries
+def test_load_entries(project):
     _set_addons(
         project,
         {
-            "oca-web": {"kind": "git", "url": "https://x/web.git"},
-            "qj": {"kind": "pypi", "spec": "odoo-addon-queue_job==16.0.*"},
-            "loc": {"kind": "link", "path": "../dev/loc"},
-            "plain": {},
+            "addons-example": {
+                "install": "clone",
+                "url": "https://x/e.git",
+                "branch": "16.0",
+            },
+            "addonx": {"install": "pypi", "path": "addons/addons-example/addonx"},
+            "addony": {"install": "source", "path": "addons/addons-example/addony"},
+            "remote": {"install": "pypi", "spec": "odoo-addon-x"},
         },
     )
     entries = addons.load_entries(project)
-    assert entries["oca-web"].kind == "git"
-    assert entries["oca-web"].addons == ["*"]
-    assert entries["qj"].kind == "pypi"
-    assert entries["loc"].kind == "link"
-    assert entries["plain"].kind == "directory"
+    assert entries["addons-example"].install == "clone"
+    assert entries["addonx"].install == "pypi"
+    assert entries["addony"].path == "addons/addons-example/addony"
+    assert entries["remote"].spec == "odoo-addon-x"
 
 
 @pytest.mark.parametrize(
     "raw,match",
     [
-        ({"kind": "nope"}, "unknown kind"),
-        ({"kind": "git"}, "needs a 'url'"),
-        ({"kind": "pypi"}, "needs a 'spec'"),
-        ({"kind": "link"}, "needs a 'path'"),
+        ({"install": "nope"}, "unknown install type"),
+        ({"install": "clone"}, "needs a 'url'"),
+        ({"install": "pypi"}, "needs a 'spec' or a 'path'"),
+        ({"install": "source"}, "needs a 'path'"),
         ("notadict", "must be a mapping"),
     ],
 )
@@ -88,216 +132,297 @@ def test_secret_overrides_and_disables(project):
     _set_addons(
         project,
         {
-            "oca-web": {"kind": "git", "url": "https://x/web.git"},
-            "qj": {"kind": "pypi", "spec": "spec1"},
+            "a": {"install": "pypi", "spec": "spec1"},
+            "b": {"install": "pypi", "spec": "spec2"},
         },
     )
     project.secret_yml.write_text(
-        yaml.safe_dump(
-            {"ADDONS": {"oca-web": None, "qj": {"kind": "pypi", "spec": "spec2"}}}
-        )
+        yaml.safe_dump({"ADDONS": {"a": None, "b": {"install": "pypi", "spec": "s3"}}})
     )
     entries = addons.load_entries(project)
-    assert "oca-web" not in entries
-    assert entries["qj"].spec == "spec2"
+    assert "a" not in entries
+    assert entries["b"].spec == "s3"
 
 
 # ---------------------------------------------------------------- converge
-def test_converge_git_update_and_link(project, calls, have_uv):
-    _set_addons(project, {"oca-web": {"kind": "git", "url": "https://x/web.git"}})
-    repo = _fake_repo(project, "oca-web", ["web_a", "web_b"])
-    linked = addons.converge(project, load_config(project))
-    assert linked == ["web_a", "web_b"]
-    # branch substituted from ODOO_VERSION, fetch + checkout on existing repo
-    assert ["git", "-C", str(repo), "fetch", "--depth", "1", "origin", "16.0"] in calls
-    for name in ("web_a", "web_b"):
-        link = project.addons_dir / name
-        assert link.is_symlink()
-        assert (link / "__manifest__.py").is_file()
+def test_clone_goes_into_addons(project, calls, have_uv):
+    _set_addons(
+        project, {"addons-example": {"install": "clone", "url": "https://x/e.git"}}
+    )
+    done = addons.converge(project, load_config(project))
+    assert done == ["addons-example (cloned)"]
+    clone = calls[0]
+    assert clone[:2] == ["git", "clone"]
+    assert str(project.addons_dir / "addons-example") in clone
+    assert "16.0" in clone  # branch defaults to ODOO_VERSION
 
 
-def test_converge_git_addon_globs(project, calls, have_uv):
+def test_clone_is_gitignored_by_default(project, calls, have_uv):
+    _set_addons(
+        project, {"addons-example": {"install": "clone", "url": "https://x/e.git"}}
+    )
+    addons.converge(project, load_config(project))
+    gitignore = project.gitignore.read_text().splitlines()
+    assert "/addons/addons-example/" in gitignore
+    assert addons.GITIGNORE_BEGIN in gitignore
+
+    # opting out removes it again
     _set_addons(
         project,
         {
-            "oca-web": {
-                "kind": "git",
-                "url": "https://x/web.git",
-                "addons": ["web_a"],
+            "addons-example": {
+                "install": "clone",
+                "url": "https://x/e.git",
+                "gitignore": False,
             }
         },
     )
-    _fake_repo(project, "oca-web", ["web_a", "web_b"])
-    linked = addons.converge(project, load_config(project))
-    assert linked == ["web_a"]
-    assert not (project.addons_dir / "web_b").exists()
+    addons.converge(project, load_config(project))
+    assert "/addons/addons-example/" not in project.gitignore.read_text().splitlines()
 
 
-def test_converge_no_matching_addons(project, calls, have_uv):
-    _set_addons(
-        project,
-        {"empty": {"kind": "git", "url": "https://x/e.git", "addons": ["nope"]}},
-    )
-    _fake_repo(project, "empty", ["real"])
-    with pytest.raises(WaftError, match="no addons matching"):
-        addons.converge(project, load_config(project))
-
-
-def test_converge_duplicate_addon(project, calls, have_uv):
+def test_local_addon_can_opt_into_gitignore(project, calls, have_uv):
+    _make_addon(project.addons_dir / "addons-local" / "addonz")
     _set_addons(
         project,
         {
-            "r1": {"kind": "git", "url": "https://x/1.git"},
-            "r2": {"kind": "git", "url": "https://x/2.git"},
+            "addonz": {
+                "install": "source",
+                "path": "addons/addons-local/addonz",
+                "gitignore": True,
+            }
         },
     )
-    _fake_repo(project, "r1", ["dup"])
-    _fake_repo(project, "r2", ["dup"])
-    with pytest.raises(WaftError, match="multiple entries"):
+    addons.converge(project, load_config(project))
+    assert "/addons/addons-local/addonz/" in project.gitignore.read_text().splitlines()
+
+
+def test_pypi_from_spec(project, calls, have_uv):
+    _set_addons(
+        project,
+        {
+            "addon": {
+                "install": "pypi",
+                "spec": "https://github.com/example/e/tree/16.0/addons/addon",
+            }
+        },
+    )
+    addons.converge(project, load_config(project))
+    install = calls[-1]
+    assert "git+https://github.com/example/e@16.0#subdirectory=addons/addon" in install
+
+
+def test_pypi_from_local_path(project, calls, have_uv):
+    addon = _make_addon(project.addons_dir / "addons-example" / "addonx")
+    (addon / "setup.py").write_text("from setuptools import setup; setup()")
+    _set_addons(
+        project,
+        {"addonx": {"install": "pypi", "path": "addons/addons-example/addonx"}},
+    )
+    addons.converge(project, load_config(project))
+    assert str(addon) in calls[-1]
+
+
+def test_pypi_from_oca_setup_directory(project, calls, have_uv):
+    """OCA repositories keep the packaging in setup/<addon>/."""
+    repo = project.addons_dir / "addons-example"
+    _make_addon(repo / "addonx")
+    setup_dir = repo / "setup" / "addonx"
+    setup_dir.mkdir(parents=True)
+    (setup_dir / "setup.py").write_text("from setuptools import setup; setup()")
+    _set_addons(
+        project,
+        {"addonx": {"install": "pypi", "path": "addons/addons-example/addonx"}},
+    )
+    addons.converge(project, load_config(project))
+    assert str(setup_dir) in calls[-1]
+
+
+def test_pypi_local_path_without_packaging(project, calls, have_uv):
+    _make_addon(project.addons_dir / "addons-example" / "addonx")
+    _set_addons(
+        project,
+        {"addonx": {"install": "pypi", "path": "addons/addons-example/addonx"}},
+    )
+    with pytest.raises(WaftError, match="no setup.py or pyproject.toml"):
         addons.converge(project, load_config(project))
 
 
-def test_converge_pypi(project, calls, have_uv):
-    _set_addons(project, {"qj": {"kind": "pypi", "spec": "odoo-addon-x==16.0.*"}})
-    addons.converge(project, load_config(project))
-    assert any("odoo-addon-x==16.0.*" in call for call in calls)
-
-
-def test_converge_link_kind(project, tmp_path_factory):
-    external = tmp_path_factory.mktemp("dev") / "my_addon"
-    external.mkdir()
-    (external / "__manifest__.py").write_text("{}")
-    _set_addons(project, {"my_addon": {"kind": "link", "path": str(external)}})
-    linked = addons.converge(project, load_config(project))
-    assert linked == ["my_addon"]
-    assert (project.addons_dir / "my_addon").is_symlink()
-
-
-def test_converge_link_missing_manifest(project, tmp_path_factory):
-    external = tmp_path_factory.mktemp("dev") / "empty"
-    external.mkdir()
-    _set_addons(project, {"empty": {"kind": "link", "path": str(external)}})
+def test_source_requires_existing_addon(project, calls, have_uv):
+    _set_addons(project, {"addony": {"install": "source", "path": "addons/e/addony"}})
+    with pytest.raises(WaftError, match="does not exist"):
+        addons.converge(project, load_config(project))
+    (project.addons_dir / "e" / "addony").mkdir(parents=True)
     with pytest.raises(WaftError, match="no Odoo manifest"):
         addons.converge(project, load_config(project))
 
 
-def test_converge_removes_stale_links(project, calls, have_uv):
-    _set_addons(project, {"oca-web": {"kind": "git", "url": "https://x/web.git"}})
-    _fake_repo(project, "oca-web", ["web_a", "web_b"])
-    addons.converge(project, load_config(project))
-    assert (project.addons_dir / "web_b").is_symlink()
-    _set_addons(
-        project,
-        {"oca-web": {"kind": "git", "url": "https://x/web.git", "addons": ["web_a"]}},
-    )
-    addons.converge(project, load_config(project))
-    assert not (project.addons_dir / "web_b").exists()
-    assert (project.addons_dir / "web_a").is_symlink()
-
-
-def test_converge_refuses_to_clobber_real_dir(project, calls, have_uv):
-    _set_addons(project, {"oca-web": {"kind": "git", "url": "https://x/web.git"}})
-    _fake_repo(project, "oca-web", ["web_a"])
-    (project.addons_dir / "web_a").mkdir()
-    with pytest.raises(WaftError, match="not a symlink"):
-        addons.converge(project, load_config(project))
-
-
-def test_converge_aggregator_for_merges(project, calls, have_uv):
+# -------------------------------------------------------------- addons_path
+def test_addons_path_only_lists_declared_sources(project, calls, have_uv):
+    repo = project.addons_dir / "addons-example"
+    _make_addon(repo / "addony")
+    _make_addon(repo / "addonx")
+    _make_addon(project.addons_dir / "addons-local" / "addonz")
+    (project.odoo_dir / "addons").mkdir(parents=True)
     _set_addons(
         project,
         {
-            "oca-web": {
-                "kind": "git",
-                "url": "https://x/web.git",
-                "merges": ["origin ${ODOO_VERSION}", "origin refs/pull/1/head"],
-            }
+            "addons-example": {"install": "clone", "url": "https://x/e.git"},
+            "addonx": {"install": "pypi", "spec": "odoo-addon-x"},
+            "addony": {"install": "source", "path": "addons/addons-example/addony"},
+            "addonz": {"install": "source", "path": "addons/addons-local/addonz"},
         },
     )
-    _fake_repo(project, "oca-web", ["web_a"])
-    addons.converge(project, load_config(project))
-    agg = next(call for call in calls if "gitaggregate" in call)
-    assert agg[:4] == ["/usr/bin/uv", "tool", "run", "--from"]
-    conf_file = project.tmp_dir / "aggregate-oca-web.yml"
-    conf = yaml.safe_load(conf_file.read_text())
-    repo_conf = conf[str(project.tmp_dir / "repos" / "oca-web")]
-    assert repo_conf["target"] == "origin 16.0"
-    assert repo_conf["merges"] == ["origin 16.0", "origin refs/pull/1/head"]
+    path = addons.addons_path(project)
+    assert str(project.odoo_dir / "addons") in path
+    assert str(repo) in path  # contains the declared addony
+    assert str(project.addons_dir / "addons-local") in path
+    # the bare addons/ directory is never added wholesale
+    assert str(project.addons_dir) not in path
+
+    conf = render_odoo_conf(project)
+    line = next(row for row in conf.splitlines() if row.startswith("addons_path"))
+    assert str(repo) in line and str(project.addons_dir) + "\n" not in line
+
+
+def test_addons_path_empty_without_declarations(project):
+    assert addons.addons_path(project) == []
 
 
 # ---------------------------------------------------------------- commands
-def test_addon_add_infers_kind_and_lists(project, capsys):
-    addons.addon_add(project, "oca-web", {"url": "https://x/web.git"})
+def test_add_infers_install_type(project):
+    addons.addon_add(project, "repo", {"url": "https://x/e.git"})
+    addons.addon_add(project, "remote", {"spec": "odoo-addon-x"})
+    addons.addon_add(project, "local", {"path": "addons/addons-local/addonz"})
     entries = addons.load_entries(project)
-    assert entries["oca-web"].kind == "git"
+    assert entries["repo"].install == "clone"
+    assert entries["remote"].install == "pypi"
+    assert entries["local"].install == "source"
+
+
+def test_add_rejects_duplicate_and_reserved_name(project):
+    addons.addon_add(project, "repo", {"url": "https://x/e.git"})
     with pytest.raises(WaftError, match="already exists"):
-        addons.addon_add(project, "oca-web", {})
-    addons.addon_list(project)
-    out = capsys.readouterr().out
-    assert "oca-web" in out and "git" in out
-
-
-def test_addon_add_rejects_reserved_odoo_name(project):
+        addons.addon_add(project, "repo", {"url": "https://x/e.git"})
     with pytest.raises(WaftError, match="reserved for the Odoo source"):
         addons.addon_add(project, "odoo", {"url": "https://x/odoo.git"})
 
 
-def test_addon_list_ignores_odoo_checkout(project, capsys):
-    (project.odoo_dir / "odoo").mkdir(parents=True)
-    addons.addon_list(project)
-    assert "no addons configured" in capsys.readouterr().out
-
-
-def test_addon_configure_and_delete(project):
-    addons.addon_add(project, "oca-web", {"url": "https://x/web.git"})
-    addons.addon_configure(project, "oca-web", {"branch": "17.0"})
-    assert addons.load_entries(project)["oca-web"].branch == "17.0"
+def test_configure_changes_install_type(project):
+    addons.addon_add(project, "addony", {"path": "addons/addons-example/addony"})
+    assert addons.load_entries(project)["addony"].install == "source"
+    addons.addon_configure(project, "addony", {"install": "pypi"})
+    assert addons.load_entries(project)["addony"].install == "pypi"
     with pytest.raises(WaftError, match="nothing to configure"):
-        addons.addon_configure(project, "oca-web", {})
-    addons.addon_delete(project, "oca-web")
-    assert addons.load_entries(project) == {}
+        addons.addon_configure(project, "addony", {})
     with pytest.raises(WaftError, match="not found"):
-        addons.addon_delete(project, "oca-web")
+        addons.addon_configure(project, "ghost", {"install": "pypi"})
 
 
-def test_addon_update_git(project, calls, have_uv):
-    addons.addon_add(project, "oca-web", {"url": "https://x/web.git"})
-    _fake_repo(project, "oca-web", ["web_a"])
-    addons.addon_update(project, "oca-web")
+def test_delete_keeps_files_but_drops_declaration(project, capsys):
+    _make_addon(project.addons_dir / "addons-local" / "addonz")
+    addons.addon_add(project, "addonz", {"path": "addons/addons-local/addonz"})
+    addons.addon_delete(project, "addonz")
+    assert addons.load_entries(project) == {}
+    assert (project.addons_dir / "addons-local" / "addonz").is_dir()
+    assert "left on disk" in capsys.readouterr().out
+
+
+def test_update_clone_and_pypi(project, calls, have_uv):
+    addons.addon_add(project, "repo", {"url": "https://x/e.git"})
+    (project.addons_dir / "repo" / ".git").mkdir(parents=True)
+    addons.addon_update(project, "repo")
     assert any("fetch" in call for call in calls)
-    assert (project.addons_dir / "web_a").is_symlink()
 
-
-def test_addon_update_pypi(project, calls, have_uv):
-    addons.addon_add(project, "qj", {"spec": "odoo-addon-x"})
-    addons.addon_update(project, "qj")
+    addons.addon_add(project, "remote", {"spec": "odoo-addon-x"})
+    addons.addon_update(project, "remote")
     assert any("--upgrade" in call for call in calls)
 
 
-def test_addon_cli_roundtrip(tmp_path, capsys):
+def test_list(project, capsys):
+    _make_addon(project.addons_dir / "addons-local" / "addonz")
+    addons.addon_add(project, "repo", {"url": "https://x/e.git"})
+    addons.addon_add(project, "addonz", {"path": "addons/addons-local/addonz"})
+    addons.addon_list(project)
+    out = capsys.readouterr().out
+    assert "repo" in out and "clone" in out and "not fetched" in out
+    assert "addonz" in out and "source" in out and "[ok]" in out
+
+
+def test_cli_declares_the_three_options(tmp_path, capsys):
     main(["-d", str(tmp_path), "init", "--odoo-version", "16.0"])
-    code = main(
+    # option 1: a single addon as a PyPI package from a remote repository
+    assert (
+        main(
+            [
+                "-d",
+                str(tmp_path),
+                "odoo",
+                "addon",
+                "--add",
+                "addon",
+                "--spec",
+                "https://github.com/example/e/tree/a-branch/addons/addon",
+            ]
+        )
+        == 0
+    )
+    # option 2: clone a repository, then declare addons inside it
+    main(
         [
             "-d",
             str(tmp_path),
             "odoo",
             "addon",
             "--add",
-            "oca-web",
+            "addons-example",
+            "-t",
+            "clone",
             "--url",
-            "https://x/web.git",
-            "--addons",
-            "web_a,web_b",
-            "--merge",
-            "origin ${ODOO_VERSION}",
+            "https://github.com/example/addons-example.git",
+            "--branch",
+            "a-branch-name",
         ]
     )
-    assert code == 0
+    main(
+        [
+            "-d",
+            str(tmp_path),
+            "odoo",
+            "addon",
+            "--add",
+            "addony",
+            "--installation-type",
+            "source",
+            "--path",
+            "addons/addons-example/addony",
+        ]
+    )
+    # option 3: a local addon, tracked in git
+    main(
+        [
+            "-d",
+            str(tmp_path),
+            "odoo",
+            "addon",
+            "--add",
+            "addonz",
+            "-t",
+            "source",
+            "--path",
+            "addons/addons-local/addonz",
+            "--no-gitignore",
+        ]
+    )
     data = yaml.safe_load((tmp_path / ".waft" / "conf" / "shared.yml").read_text())
-    entry = data["ADDONS"]["oca-web"]
-    assert entry["url"] == "https://x/web.git"
-    assert entry["addons"] == ["web_a", "web_b"]
-    assert entry["merges"] == ["origin ${ODOO_VERSION}"]
-    code = main(["-d", str(tmp_path), "odoo", "addon", "--list"])
-    assert code == 0
-    assert "oca-web" in capsys.readouterr().out
+    entries = data["ADDONS"]
+    assert entries["addon"]["install"] == "pypi"
+    assert entries["addons-example"]["install"] == "clone"
+    assert entries["addons-example"]["branch"] == "a-branch-name"
+    assert entries["addony"] == {
+        "install": "source",
+        "path": "addons/addons-example/addony",
+    }
+    assert entries["addonz"]["gitignore"] is False
+    assert main(["-d", str(tmp_path), "odoo", "addon", "--list"]) == 0
+    assert "addons-example" in capsys.readouterr().out

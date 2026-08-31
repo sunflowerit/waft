@@ -1,4 +1,4 @@
-"""Fetching git-based addon repositories into .tmp/repos/.
+"""Fetching git addon repositories into addons/<entry>/.
 
 Entries without merges use plain git (shallow clone / fetch). Entries with
 merges keep the old git-aggregator semantics, executed via "uv tool run"

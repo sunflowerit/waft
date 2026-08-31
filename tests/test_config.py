@@ -37,7 +37,8 @@ def test_odoo_conf_generation(project):
     assert "db_port = 5432" in text
     assert "db_name = testdb" in text
     assert "gevent_port = 8072" in text  # 16.0 uses gevent
-    assert str(project.addons_dir) in text
+    # nothing is on the addons path until addons are declared
+    assert "addons_path = \n" in text or "addons_path =\n" in text
     assert "[queue_job]" in text
     assert "${" not in text  # everything substituted
 

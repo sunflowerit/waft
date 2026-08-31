@@ -10,4 +10,6 @@ __version__ = "0.1.0.dev0"
 #: Format 2: the Odoo source checkout lives in /odoo/ (git-ignored).
 #: Format 3: all sources live in .src/ (Odoo checkout + addon repo clones).
 #: Format 4: the Odoo checkout lives in addons/odoo/; addon repos in .tmp/repos/.
-PROJECT_FORMAT = 4
+#: Format 5: addon repos are cloned into addons/<entry>/ and every addon is
+#: declared with an install type (clone/pypi/source); nothing is implicit.
+PROJECT_FORMAT = 5

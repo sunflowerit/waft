@@ -11,9 +11,8 @@ import os
 from pathlib import Path
 
 from . import config as config_mod
-from . import database
+from . import database, versions
 from . import venv as venv_mod
-from . import versions
 from .project import Project, WaftError
 
 SHELL_PORT = "18080"

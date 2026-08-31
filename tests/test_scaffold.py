@@ -89,7 +89,7 @@ def test_migration_from_format_1(tmp_path):
     (project.addons_dir / "gone").symlink_to("../.tmp/repos/x/gone")
 
     applied = apply_migrations(project)
-    assert applied == [2, 3, 4]
+    assert applied == [2, 3, 4, 5]
     assert (project.odoo_dir / "odoo").is_dir()
     assert not legacy_odoo.exists()
     # the editable install pointed at the old path
@@ -114,9 +114,11 @@ def test_migration_from_format_3(tmp_path):
     (project.data_dir / "addon-links.json").parent.mkdir(parents=True, exist_ok=True)
     (project.data_dir / "addon-links.json").write_text('{"web_a": {"mode": "soft"}}')
 
-    assert apply_migrations(project) == [4]
+    assert apply_migrations(project) == [4, 5]
     assert (project.odoo_dir / "odoo").is_dir()
-    assert (project.tmp_dir / "repos" / "oca-web" / "web_a").is_dir()
+    # format 5 moves the repository clones on into addons/
+    assert (project.addons_dir / "oca-web" / "web_a").is_dir()
+    assert not (project.tmp_dir / "repos").exists()
     assert not src.exists()
     assert not (project.data_dir / "addon-links.json").exists()
     assert "/addons/odoo/" in project.gitignore.read_text().splitlines()

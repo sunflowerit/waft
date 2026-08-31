@@ -1,19 +1,55 @@
-"""Addon sources, resolver and addons/ linking.
+"""Addon declarations: what to fetch and how each addon is installed.
 
-Addon configuration lives under the ADDONS key of .waft/conf/shared.yml
-(secret.yml can override an entry, or disable one by setting it to null).
-Entry kinds: git, pypi, link, directory.
+Nothing under addons/ is picked up automatically. Every addon is declared
+under the ADDONS key of .waft/conf/shared.yml (secret.yml can override an
+entry, or disable one with null) and says how it is installed:
 
-Git repositories are cloned into .tmp/repos/<entry>/; the selected addons
-are symlinked into addons/, the single addons_path. The Odoo source
-checkout itself lives in addons/odoo/ (see waft.source).
+``install: clone``
+    Fetch a git repository into addons/<name>/ (or ``path``). Fetching
+    only - the addons inside it are not installed by this entry.
 
-Plain addon directories inside addons/ need no configuration at all.
+``install: pypi``
+    Install the addon into the virtual environment with pip, either from
+    ``spec`` (any requirement pip accepts, including a git URL) or from a
+    local ``path`` such as a subdirectory of a cloned repository.
+
+``install: source``
+    Use the addon from disk: waft adds the directory that *contains* it to
+    ``addons_path`` in odoo.conf. Odoo scans addons_path entries for
+    addons, so the entry must be the parent - which means sibling addons in
+    the same directory become visible to Odoo as well (they still have to
+    be installed in the database to do anything).
+
+Example::
+
+    ADDONS:
+      # one addon as a PyPI package straight from a remote repository
+      addon:
+        install: pypi
+        spec: https://github.com/example/addons-example/tree/a-branch/addons/addon
+
+      # a whole repository cloned into addons/addons-example
+      addons-example:
+        install: clone
+        url: https://github.com/example/addons-example.git
+        branch: a-branch-name
+      addonx:
+        install: pypi
+        path: addons/addons-example/addonx
+      addony:
+        install: source
+        path: addons/addons-example/addony
+
+      # an addon the user placed in addons/addons-local/ by hand
+      addonz:
+        install: source
+        path: addons/addons-local/addonz
+        gitignore: true
 """
 
 from __future__ import annotations
 
-import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,62 +61,111 @@ from . import venv as venv_mod
 from .project import Project, WaftError
 
 MANIFESTS = ("__manifest__.py", "__openerp__.py")
-KINDS = ("git", "pypi", "link", "directory")
+INSTALL_TYPES = ("clone", "pypi", "source")
+
+GITIGNORE_BEGIN = "# waft: addon entries (managed)"
+GITIGNORE_END = "# waft: end addon entries"
+
+#: Browser URLs such as https://host/org/repo/tree/<branch>/<subdirectory>
+_WEB_URL = re.compile(
+    r"^(?P<scheme>https?)://(?P<host>[^/]+)/(?P<org>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?"
+    r"/(?:-/)?(?:tree|src)/(?P<branch>[^/]+?)(?:/(?P<subdir>.+?))?/?$"
+)
+#: git@host:org/repo[/tree/<branch>/<subdirectory>]
+_SSH_URL = re.compile(
+    r"^git@(?P<host>[^:]+):(?P<org>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?"
+    r"(?:/tree/(?P<branch>[^/]+?)(?:/(?P<subdir>.+?))?)?/?$"
+)
+
+
+def normalize_spec(value: str) -> str:
+    """Translate browser-style repository URLs into a pip requirement.
+
+    Anything pip (or pipx) already understands is passed through unchanged,
+    so plain package names, version pins and git+... URLs keep working.
+    """
+    value = value.strip()
+    for pattern, prefix in ((_WEB_URL, None), (_SSH_URL, "git+ssh://git@")):
+        match = pattern.match(value)
+        if not match or not match.group("branch"):
+            continue
+        parts = match.groupdict()
+        base = (
+            f"{prefix}{parts['host']}/{parts['org']}/{parts['repo']}"
+            if prefix
+            else f"git+{parts['scheme']}://{parts['host']}/{parts['org']}/{parts['repo']}"
+        )
+        spec = f"{base}@{parts['branch']}"
+        subdir = (parts.get("subdir") or "").strip("/")
+        if subdir.endswith(".git"):
+            subdir = subdir[: -len(".git")]
+        if subdir:
+            spec = f"{spec}#subdirectory={subdir}"
+        return spec
+    return value
 
 
 @dataclass
 class AddonEntry:
-    """One configured addon source."""
+    """One declared addon or repository."""
 
     name: str
-    kind: str = "directory"
+    install: str = "source"
     url: str = ""
     branch: str = ""
     merges: list[str] = field(default_factory=list)
     depth: str = ""
-    addons: list[str] = field(default_factory=lambda: ["*"])
-    spec: str = ""
     path: str = ""
+    spec: str = ""
+    gitignore: bool | None = None
 
     def to_yaml(self) -> dict:
-        data: dict = {"kind": self.kind}
-        for key in ("url", "branch", "depth", "spec", "path"):
+        data: dict = {"install": self.install}
+        for key in ("url", "branch", "depth", "path", "spec"):
             value = getattr(self, key)
             if value:
                 data[key] = value
         if self.merges:
             data["merges"] = list(self.merges)
-        if self.kind == "git" and self.addons != ["*"]:
-            data["addons"] = list(self.addons)
+        if self.gitignore is not None:
+            data["gitignore"] = self.gitignore
         return data
+
+    @property
+    def ignored(self) -> bool:
+        """Whether waft keeps this entry's directory out of git."""
+        if self.gitignore is not None:
+            return self.gitignore
+        return self.install == "clone"
 
 
 def parse_entry(name: str, raw) -> AddonEntry:
     if not isinstance(raw, dict):
         raise WaftError(f"ADDONS entry {name!r} must be a mapping")
-    kind = str(raw.get("kind", "directory"))
-    if kind not in KINDS:
+    install = str(raw.get("install", "source"))
+    if install not in INSTALL_TYPES:
         raise WaftError(
-            f"ADDONS entry {name!r}: unknown kind {kind!r} "
-            f"(choose from {', '.join(KINDS)})"
+            f"ADDONS entry {name!r}: unknown install type {install!r} "
+            f"(choose from {', '.join(INSTALL_TYPES)})"
         )
+    gitignore = raw.get("gitignore")
     entry = AddonEntry(
         name=name,
-        kind=kind,
+        install=install,
         url=str(raw.get("url", "")),
         branch=str(raw.get("branch", "")),
         merges=[str(merge) for merge in raw.get("merges") or []],
         depth=str(raw.get("depth", "")),
-        addons=[str(glob) for glob in raw.get("addons") or ["*"]],
-        spec=str(raw.get("spec", "")),
         path=str(raw.get("path", "")),
+        spec=str(raw.get("spec", "")),
+        gitignore=None if gitignore is None else bool(gitignore),
     )
-    if kind == "git" and not entry.url:
-        raise WaftError(f"ADDONS entry {name!r} (git) needs a 'url'")
-    if kind == "pypi" and not entry.spec:
-        raise WaftError(f"ADDONS entry {name!r} (pypi) needs a 'spec'")
-    if kind == "link" and not entry.path:
-        raise WaftError(f"ADDONS entry {name!r} (link) needs a 'path'")
+    if install == "clone" and not entry.url:
+        raise WaftError(f"ADDONS entry {name!r} (clone) needs a 'url'")
+    if install == "pypi" and not (entry.spec or entry.path):
+        raise WaftError(f"ADDONS entry {name!r} (pypi) needs a 'spec' or a 'path'")
+    if install == "source" and not entry.path:
+        raise WaftError(f"ADDONS entry {name!r} (source) needs a 'path'")
     return entry
 
 
@@ -117,129 +202,145 @@ def _save_entry(project: Project, name: str, data: dict | None) -> None:
     )
 
 
-def repo_dir(project: Project, entry: AddonEntry) -> Path:
-    return project.tmp_dir / "repos" / entry.name
-
-
 def has_manifest(path: Path) -> bool:
     return any((path / manifest).is_file() for manifest in MANIFESTS)
 
 
-def _links_state(project: Project) -> Path:
-    return project.data_dir / "addon-links"
+def entry_path(project: Project, entry: AddonEntry) -> Path:
+    """Where the entry lives on disk."""
+    if entry.path:
+        path = Path(entry.path)
+        return path if path.is_absolute() else (project.root / path)
+    return project.addons_dir / entry.name
 
 
-def _read_links(project: Project) -> set[str]:
-    state = _links_state(project)
-    if not state.is_file():
-        return set()
-    return {line for line in state.read_text(encoding="utf-8").splitlines() if line}
-
-
-def _write_links(project: Project, names) -> None:
-    state = _links_state(project)
-    state.parent.mkdir(parents=True, exist_ok=True)
-    state.write_text("".join(f"{name}\n" for name in sorted(names)), encoding="utf-8")
-
-
-def _register(desired: dict[str, Path], name: str, target: Path, entry: AddonEntry):
-    if name in desired:
+def pip_target(project: Project, entry: AddonEntry) -> str:
+    """What to hand to pip for a 'pypi' entry."""
+    if entry.spec:
+        return normalize_spec(entry.spec)
+    path = entry_path(project, entry)
+    if not path.is_dir():
         raise WaftError(
-            f"addon {name!r} is provided by multiple entries "
-            f"(latest: {entry.name!r}); remove the duplicate"
+            f"addon entry {entry.name!r}: {path} does not exist "
+            "(fetch the repository first with 'waft sync')"
         )
-    desired[name] = target
+    for candidate in (path, path.parent / "setup" / path.name):
+        if (candidate / "setup.py").is_file() or (
+            candidate / "pyproject.toml"
+        ).is_file():
+            return str(candidate)
+    raise WaftError(
+        f"addon entry {entry.name!r}: no setup.py or pyproject.toml for {path}; "
+        "use 'install: source' instead, or point 'path' at a packaged addon"
+    )
+
+
+def source_paths(project: Project) -> list[str]:
+    """Directories to put in addons_path, from the declared source addons.
+
+    Odoo scans an addons_path entry *for* addons, so the entry is the
+    directory containing the declared addon.
+    """
+    paths: list[str] = []
+    for entry in load_entries(project).values():
+        if entry.install != "source":
+            continue
+        parent = entry_path(project, entry).parent
+        if parent.is_dir() and str(parent) not in paths:
+            paths.append(str(parent))
+    return sorted(paths)
+
+
+def addons_path(project: Project) -> list[str]:
+    """The full addons_path: the Odoo checkout plus declared source addons."""
+    paths = [
+        str(candidate)
+        for candidate in (
+            project.odoo_dir / "addons",
+            project.odoo_dir / "odoo" / "addons",
+        )
+        if candidate.is_dir()
+    ]
+    for path in source_paths(project):
+        if path not in paths:
+            paths.append(path)
+    return paths
+
+
+def update_gitignore(project: Project, entries: dict[str, AddonEntry]) -> None:
+    """Keep the managed block of addon directories in .gitignore current."""
+    wanted = []
+    for entry in sorted(entries.values(), key=lambda item: item.name):
+        if not entry.ignored:
+            continue
+        path = entry_path(project, entry)
+        try:
+            relative = path.relative_to(project.root)
+        except ValueError:  # outside the project: nothing to ignore
+            continue
+        line = f"/{relative.as_posix()}/"
+        if line not in wanted:
+            wanted.append(line)
+    lines = (
+        project.gitignore.read_text(encoding="utf-8").splitlines()
+        if project.gitignore.is_file()
+        else []
+    )
+    if GITIGNORE_BEGIN in lines:
+        start = lines.index(GITIGNORE_BEGIN)
+        end = lines.index(GITIGNORE_END) + 1 if GITIGNORE_END in lines else start + 1
+        lines = lines[:start] + lines[end:]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if wanted:
+        lines += [GITIGNORE_BEGIN, *wanted, GITIGNORE_END]
+    project.gitignore.write_text(
+        "".join(f"{line}\n" for line in lines), encoding="utf-8"
+    )
 
 
 def converge(project: Project, cfg: dict[str, str]) -> list[str]:
-    """Fetch/install configured addon sources and (re)link addons/."""
+    """Fetch what must be fetched and install what must be installed."""
     entries = load_entries(project)
-    desired: dict[str, Path] = {}
-    for entry in entries.values():
-        if entry.kind == "git":
-            repo = repo_dir(project, entry)
-            aggregate.fetch_repo(project, entry, cfg, repo)
-            matched = []
-            for pattern in entry.addons:
-                for child in sorted(repo.glob(pattern)):
-                    if child.is_dir() and has_manifest(child):
-                        matched.append(child)
-            if not matched:
+    done: list[str] = []
+    for entry in sorted(entries.values(), key=lambda item: item.name):
+        if entry.install == "clone":
+            aggregate.fetch_repo(project, entry, cfg, entry_path(project, entry))
+            done.append(f"{entry.name} (cloned)")
+        elif entry.install == "pypi":
+            venv_mod.run_pip(project, cfg, ["install", pip_target(project, entry)])
+            done.append(f"{entry.name} (pypi)")
+        elif entry.install == "source":
+            path = entry_path(project, entry)
+            if not path.is_dir():
+                raise WaftError(f"addon entry {entry.name!r}: {path} does not exist")
+            if not has_manifest(path):
                 raise WaftError(
-                    f"addon entry {entry.name!r}: no addons matching "
-                    f"{entry.addons} in {repo}"
+                    f"addon entry {entry.name!r}: no Odoo manifest in {path}"
                 )
-            for child in matched:
-                _register(desired, child.name, child, entry)
-        elif entry.kind == "pypi":
-            venv_mod.run_pip(project, cfg, ["install", entry.spec])
-        elif entry.kind == "link":
-            target = Path(entry.path)
-            if not target.is_absolute():
-                target = (project.root / target).resolve()
-            if not has_manifest(target):
-                raise WaftError(
-                    f"addon entry {entry.name!r}: no Odoo manifest in {target}"
-                )
-            _register(desired, entry.name, target, entry)
-        elif entry.kind == "directory":
-            target = project.addons_dir / entry.name
-            if not (target.is_dir() and has_manifest(target)):
-                print(
-                    f"warning: addon entry {entry.name!r}: {target} is not "
-                    "an addon directory (yet)"
-                )
-    project.addons_dir.mkdir(exist_ok=True)
-    for name, target in desired.items():
-        linkpath = project.addons_dir / name
-        rel = os.path.relpath(target, project.addons_dir)
-        if linkpath.is_symlink():
-            if os.readlink(linkpath) == rel:
-                continue
-            linkpath.unlink()
-        elif linkpath.exists():
-            raise WaftError(
-                f"cannot link addon {name!r}: {linkpath} already exists "
-                "and is not a symlink"
-            )
-        linkpath.symlink_to(rel)
-    for name in _read_links(project) - desired.keys():
-        stale = project.addons_dir / name
-        if stale.is_symlink():
-            stale.unlink()
-    _write_links(project, desired.keys())
-    return sorted(desired)
+            done.append(f"{entry.name} (source)")
+    update_gitignore(project, entries)
+    return done
 
 
 def addon_list(project: Project) -> int:
     """`waft odoo addon --list`."""
     entries = load_entries(project)
+    if not entries:
+        print("no addons declared; see 'waft odoo addon --help'")
+        return 0
     rows: list[tuple[str, str, str]] = []
     for name, entry in sorted(entries.items()):
-        if entry.kind == "git":
-            repo = repo_dir(project, entry)
-            status = "fetched" if repo.exists() else "not fetched (run 'waft sync')"
-            rows.append((name, "git", f"{entry.url} [{status}]"))
-        elif entry.kind == "pypi":
-            rows.append((name, "pypi", entry.spec))
-        elif entry.kind == "link":
-            rows.append((name, "link", entry.path))
+        path = entry_path(project, entry)
+        if entry.install == "clone":
+            state = "cloned" if (path / ".git").is_dir() else "not fetched"
+            rows.append((name, "clone", f"{entry.url} -> {path} [{state}]"))
+        elif entry.install == "pypi":
+            detail = normalize_spec(entry.spec) if entry.spec else str(path)
+            rows.append((name, "pypi", detail))
         else:
-            rows.append((name, "directory", str(project.addons_dir / name)))
-    seen = {name for name, _, _ in rows}
-    if project.addons_dir.is_dir():
-        for child in sorted(project.addons_dir.iterdir()):
-            if child.name in seen or child.name.startswith("."):
-                continue
-            if child == project.odoo_dir:  # the Odoo source checkout
-                continue
-            if child.is_symlink():
-                rows.append((child.name, "linked", os.readlink(child)))
-            elif child.is_dir() and has_manifest(child):
-                rows.append((child.name, "directory", "unmanaged"))
-    if not rows:
-        print("no addons configured; see 'waft odoo addon --help'")
-        return 0
+            state = "ok" if has_manifest(path) else "missing"
+            rows.append((name, "source", f"{path} [{state}]"))
     name_width = max(len(row[0]) for row in rows)
     kind_width = max(len(row[1]) for row in rows)
     for name, kind, detail in rows:
@@ -247,18 +348,16 @@ def addon_list(project: Project) -> int:
     return 0
 
 
-def _infer_kind(options: dict) -> str:
+def _infer_install(options: dict) -> str:
     if options.get("url"):
-        return "git"
+        return "clone"
     if options.get("spec"):
         return "pypi"
-    if options.get("path"):
-        return "link"
-    return "directory"
+    return "source"
 
 
 def addon_add(project: Project, name: str, options: dict) -> int:
-    """`waft odoo addon --add NAME [--url ...|--spec ...|--path ...]`."""
+    """`waft odoo addon --add NAME -t {clone,pypi,source} ...`."""
     if name in load_entries(project):
         raise WaftError(
             f"addon entry {name!r} already exists; use --config to change it"
@@ -269,57 +368,61 @@ def addon_add(project: Project, name: str, options: dict) -> int:
             f"{project.addons_dir}"
         )
     options = dict(options)
-    options.setdefault("kind", _infer_kind(options))
+    options.setdefault("install", _infer_install(options))
     entry = parse_entry(name, options)
     _save_entry(project, name, entry.to_yaml())
-    print(f"added addon entry {name!r} ({entry.kind}) to {project.shared_yml}")
-    if entry.kind != "directory":
-        print("run 'waft sync' to fetch/install and link it")
+    print(f"declared addon entry {name!r} ({entry.install}) in {project.shared_yml}")
+    print("run 'waft sync' to apply it")
     return 0
 
 
 def addon_configure(project: Project, name: str, options: dict) -> int:
-    """`waft odoo addon --config NAME [--url ...|--branch ...|...]`."""
+    """`waft odoo addon --config NAME ...`."""
     entries = load_entries(project)
     if name not in entries:
         raise WaftError(f"addon entry {name!r} not found; use --add first")
     if not options:
         raise WaftError(
-            "nothing to configure; pass e.g. --url, --branch, --spec or --path"
+            "nothing to configure; pass e.g. --installation-type, --url, "
+            "--branch, --path or --spec"
         )
     raw = entries[name].to_yaml()
     raw.update(options)
     entry = parse_entry(name, raw)
     _save_entry(project, name, entry.to_yaml())
-    print(f"updated addon entry {name!r} in {project.shared_yml}")
+    print(f"updated addon entry {name!r} ({entry.install}) in {project.shared_yml}")
     print("run 'waft sync' to apply the change")
     return 0
 
 
 def addon_delete(project: Project, name: str) -> int:
-    """`waft odoo addon --delete NAME`."""
+    """`waft odoo addon --delete NAME`: forget the declaration."""
+    entries = load_entries(project)
+    entry = entries.get(name)
     _save_entry(project, name, None)
-    link = project.addons_dir / name
-    if link.is_symlink():
-        link.unlink()
-    _write_links(project, _read_links(project) - {name})
+    if entry is not None:
+        update_gitignore(project, {k: v for k, v in entries.items() if k != name})
+        path = entry_path(project, entry)
+        if entry.install != "pypi" and path.exists():
+            print(f"note: {path} is left on disk; remove it manually if unwanted")
     print(f"removed addon entry {name!r} from {project.shared_yml}")
     return 0
 
 
 def addon_update(project: Project, name: str) -> int:
-    """`waft odoo addon --update NAME`: refresh one addon from its source."""
+    """`waft odoo addon --update NAME`: refresh one entry from its source."""
     entry = load_entries(project).get(name)
     if entry is None:
         raise WaftError(f"addon entry {name!r} not found; see --list")
     cfg = config_mod.load_config(project)
-    if entry.kind == "git":
-        aggregate.fetch_repo(project, entry, cfg, repo_dir(project, entry))
-        converge(project, cfg)
-        print(f"updated addon entry {name!r} from {entry.url}")
-    elif entry.kind == "pypi":
-        venv_mod.run_pip(project, cfg, ["install", "--upgrade", entry.spec])
-        print(f"updated {entry.spec}")
+    if entry.install == "clone":
+        aggregate.fetch_repo(project, entry, cfg, entry_path(project, entry))
+        print(f"updated {name!r} from {entry.url}")
+    elif entry.install == "pypi":
+        venv_mod.run_pip(
+            project, cfg, ["install", "--upgrade", pip_target(project, entry)]
+        )
+        print(f"updated {name!r}")
     else:
-        print(f"addon entry {name!r} is kind {entry.kind!r}; nothing to update")
+        print(f"addon entry {name!r} is used from source; nothing to fetch")
     return 0

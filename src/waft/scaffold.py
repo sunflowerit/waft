@@ -209,12 +209,71 @@ def _migration_4(project: Project) -> None:
     _rewrite_gitignore(project, ["/odoo/", ".src/"], "/addons/odoo/")
 
 
+_INSTALL_FROM_KIND = {
+    "git": "clone",
+    "pypi": "pypi",
+    "link": "source",
+    "directory": "source",
+}
+
+
+def _migration_5(project: Project) -> None:
+    """Format 5: repos cloned into addons/<entry>/, explicit install types."""
+    legacy_repos = project.tmp_dir / "repos"
+    if legacy_repos.is_dir():
+        project.addons_dir.mkdir(parents=True, exist_ok=True)
+        for repo in sorted(legacy_repos.iterdir()):
+            destination = project.addons_dir / repo.name
+            if not destination.exists():
+                repo.rename(destination)
+        if not any(legacy_repos.iterdir()):
+            legacy_repos.rmdir()
+    # Addons used to be symlinked into addons/; they are declared now.
+    state = project.data_dir / "addon-links"
+    if state.is_file():
+        for name in state.read_text(encoding="utf-8").split():
+            link = project.addons_dir / name
+            if link.is_symlink():
+                link.unlink()
+        state.unlink()
+    # Translate the old ADDONS schema (kind:) into install types.
+    for path in (project.shared_yml, project.secret_yml):
+        mapping = config.load_yaml_mapping(path)
+        addons = mapping.get("ADDONS")
+        if not isinstance(addons, dict):
+            continue
+        changed = False
+        for name, raw in list(addons.items()):
+            if not isinstance(raw, dict) or "kind" not in raw:
+                continue
+            raw = dict(raw)
+            kind = str(raw.pop("kind"))
+            raw.pop("addons", None)  # per-addon globs have no equivalent
+            raw["install"] = _INSTALL_FROM_KIND.get(kind, "source")
+            if raw["install"] == "source" and not raw.get("path"):
+                raw["path"] = f"addons/{name}"
+            addons[name] = raw
+            changed = True
+        if changed:
+            mapping["ADDONS"] = addons
+            path.write_text(
+                yaml.safe_dump(mapping, default_flow_style=False, sort_keys=True),
+                encoding="utf-8",
+            )
+            print(
+                f"note: {path} ADDONS entries were converted to install types; "
+                "repositories are cloned but their addons must now be declared "
+                "individually (waft odoo addon --add ... -t source|pypi)"
+            )
+
+
 #: Ordered project-format migrations: {target_format: callable(project)}.
 #: A migration upgrades a project from target_format - 1 to target_format.
 MIGRATIONS: dict[int, callable] = {
     2: _migration_2,
     3: _migration_3,
     4: _migration_4,
+    5: _migration_5,
 }
 
 
@@ -245,8 +304,6 @@ def sync(project: Project) -> int:
     applied = apply_migrations(project)
     if applied:
         print(f"applied project format migration(s): {', '.join(map(str, applied))}")
-    config.generate_odoo_conf(project)
-    print(f"regenerated {project.odoo_conf}")
     cfg = config.load_config(project)
     if venv_mod.ensure_venv(project, cfg):
         print(f"created virtual environment {project.venv_dir}")
@@ -260,6 +317,10 @@ def sync(project: Project) -> int:
         print("Odoo installation is up to date")
     from . import addons as addons_mod
 
-    linked = addons_mod.converge(project, cfg)
-    print(f"addons linked: {', '.join(linked) if linked else '(none)'}")
+    done = addons_mod.converge(project, cfg)
+    print(f"addons: {', '.join(done) if done else '(none declared)'}")
+    # The addons path depends on the declared source addons, so the Odoo
+    # configuration is generated once everything is on disk.
+    config.generate_odoo_conf(project)
+    print(f"regenerated {project.odoo_conf}")
     return 0

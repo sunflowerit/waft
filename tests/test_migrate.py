@@ -114,7 +114,7 @@ def test_run_hooks_order_resume(project, calls):
 
 
 def test_upgrade_command_openupgrade_14_plus(project):
-    scripts = project.tmp_dir / "repos" / "openupgrade" / "scripts"
+    scripts = project.addons_dir / "openupgrade" / "scripts"
     cmd = migrate.upgrade_command(project, "16.0", "proddb", scripts)
     joined = " ".join(str(part) for part in cmd)
     assert "-u base" in joined
