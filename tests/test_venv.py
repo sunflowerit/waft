@@ -62,15 +62,101 @@ def test_ensure_venv_python2_fallback(tmp_path, calls, have_uv):
     assert "/usr/bin/python2.7" in calls[0]
 
 
-def test_ensure_venv_python2_missing(tmp_path, calls, monkeypatch):
+def test_ensure_venv_python2_installs_from_apt(tmp_path, calls, monkeypatch):
+    """A missing old interpreter is installed into the system environment."""
+    project = init_project(tmp_path, "8.0")
+    present = {"uv", "apt-get", "sudo", "add-apt-repository"}
+
+    def fake_which(name):
+        if name in present:
+            return f"/usr/bin/{name}"
+        return None
+
+    def fake_run(cmd, check=True, **kwargs):
+        cmd = [str(part) for part in cmd]
+        calls.append(cmd)
+        if "install" in cmd and "python2.7" in cmd:
+            present.add("python2.7")  # apt made it available
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(venv_mod.shutil, "which", fake_which)
+    monkeypatch.setattr(venv_mod.subprocess, "run", fake_run)
+    assert venv_mod.ensure_venv(project) is True
+    assert ["sudo", "apt-get", "update"] in calls
+    assert any("python2.7-dev" in call for call in calls)
+    assert any("virtualenv" in " ".join(call) for call in calls)
+
+
+def test_ensure_venv_python2_unavailable(tmp_path, calls, monkeypatch):
     project = init_project(tmp_path, "8.0")
     monkeypatch.setattr(
         venv_mod.shutil,
         "which",
         lambda name: "/usr/bin/uv" if name == "uv" else None,
     )
-    with pytest.raises(WaftError, match="python2.7 is required"):
+    with pytest.raises(WaftError, match="could not be installed automatically"):
         venv_mod.ensure_venv(project)
+
+
+def test_uv_prefers_path(monkeypatch):
+    monkeypatch.setattr(venv_mod.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr(venv_mod, "_bundled_uv", lambda: "/bundled/uv")
+    assert venv_mod.uv_binary() == "/usr/bin/uv"
+
+
+def test_uv_falls_back_to_bundled(monkeypatch):
+    monkeypatch.setattr(venv_mod.shutil, "which", lambda name: None)
+    monkeypatch.setattr(venv_mod, "_bundled_uv", lambda: "/bundled/uv")
+    assert venv_mod.uv_binary() == "/bundled/uv"
+
+
+def test_uv_installed_when_missing(monkeypatch):
+    monkeypatch.setattr(venv_mod.shutil, "which", lambda name: None)
+    monkeypatch.setattr(venv_mod, "_bundled_uv", lambda: None)
+    monkeypatch.setattr(venv_mod, "install_uv", lambda: "/installed/uv")
+    assert venv_mod.uv_binary() == "/installed/uv"
+
+
+def test_install_uv_uses_pipx(monkeypatch, calls):
+    installed = {}
+
+    def fake_which(name):
+        if name == "pipx":
+            return "/usr/bin/pipx"
+        if name == "uv":
+            return "/usr/bin/uv" if installed else None
+        return None
+
+    def fake_run(cmd, check=True, **kwargs):
+        cmd = [str(part) for part in cmd]
+        calls.append(cmd)
+        if cmd[:2] == ["/usr/bin/pipx", "install"] or cmd[:2] == ["pipx", "install"]:
+            installed["uv"] = True
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(venv_mod.shutil, "which", fake_which)
+    monkeypatch.setattr(venv_mod.subprocess, "run", fake_run)
+    monkeypatch.setattr(venv_mod, "_bundled_uv", lambda: None)
+    assert venv_mod.install_uv() == "/usr/bin/uv"
+    assert ["pipx", "install", "uv"] in calls
+
+
+def test_uv_error_when_uninstallable(monkeypatch):
+    monkeypatch.setattr(venv_mod.shutil, "which", lambda name: None)
+    monkeypatch.setattr(venv_mod, "_bundled_uv", lambda: None)
+    monkeypatch.setattr(venv_mod, "install_uv", lambda: None)
+    with pytest.raises(WaftError, match="could not be installed automatically"):
+        venv_mod.uv_binary()
+
+
+def test_apt_install_without_sudo(monkeypatch):
+    monkeypatch.setattr(
+        venv_mod.shutil,
+        "which",
+        lambda name: "/usr/bin/apt-get" if name == "apt-get" else None,
+    )
+    monkeypatch.setattr(venv_mod.os, "geteuid", lambda: 1000, raising=False)
+    assert venv_mod.apt_install(["python2.7"]) is False
 
 
 def test_ensure_venv_skips_existing(project, calls):
@@ -81,7 +167,9 @@ def test_ensure_venv_skips_existing(project, calls):
 
 def test_uv_missing_is_clear_error(project, calls, monkeypatch):
     monkeypatch.setattr(venv_mod.shutil, "which", lambda name: None)
-    with pytest.raises(WaftError, match="uv is not installed"):
+    monkeypatch.setattr(venv_mod, "_bundled_uv", lambda: None)
+    monkeypatch.setattr(venv_mod, "install_uv", lambda: None)
+    with pytest.raises(WaftError, match="could not be installed automatically"):
         venv_mod.ensure_venv(project)
 
 

@@ -12,6 +12,9 @@ dynamic = ["version"]
 authors = [{ name = "Therp BV" }]
 dependencies = [
     "PyYAML>=6.0",
+    # uv ships as a wheel with the binary bundled, so 'pipx install waft'
+    # always provides it; waft still prefers a uv already on PATH.
+    "uv>=0.5",
 ]
 
 [project.optional-dependencies]

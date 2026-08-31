@@ -4,16 +4,24 @@ Odoo 14.0+ (Python >= 3.8): uv creates the venv and installs the Python
 interpreter (https://docs.astral.sh/uv).
 
 Odoo 8.0-13.0 (Python 2.7 / 3.6): uv cannot install interpreters that old.
-Waft requires a matching system binary (python2.7 / python3.6, e.g. from the
-deadsnakes PPA) and creates the venv with a pinned virtualenv==20.15.1 - the
-last release able to create Python 2.7 and 3.6 environments - executed via
-"uv tool run" so nothing is installed globally.
+Waft needs a matching system binary (python2.7 / python3.6) and creates the
+venv with a pinned virtualenv==20.15.1 - the last release able to create
+Python 2.7 and 3.6 environments - executed via "uv tool run" so nothing is
+installed globally.
+
+uv itself is a dependency of the waft package, so "pipx install waft"
+already provides it; waft prefers a uv found on PATH and falls back to the
+bundled one. Missing host tools (uv, or an old Python) are installed into
+the system environment when possible - installing system packages goes
+through sudo, which may ask for a password.
 """
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from . import config as config_mod
@@ -41,14 +49,75 @@ def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
         ) from exc
 
 
+def _bundled_uv() -> str | None:
+    """The uv shipped with the waft package (uv.find_uv_bin)."""
+    try:
+        from uv import find_uv_bin
+    except ImportError:
+        return None
+    try:
+        path = find_uv_bin()
+    except FileNotFoundError:
+        return None
+    return path if Path(path).exists() else None
+
+
+def install_uv() -> str | None:
+    """Install uv into the system environment; returns its path or None."""
+    print("uv not found; installing it in the system environment")
+    attempts = [["pipx", "install", "uv"]]
+    if not _in_virtualenv():
+        attempts.append([sys.executable, "-m", "pip", "install", "--user", "uv"])
+    for cmd in attempts:
+        if cmd[0] != sys.executable and shutil.which(cmd[0]) is None:
+            continue
+        print(f"+ {' '.join(cmd)}")
+        if subprocess.run(cmd, check=False).returncode == 0:
+            found = shutil.which("uv") or _bundled_uv()
+            if found:
+                return found
+    return None
+
+
+def _in_virtualenv() -> bool:
+    return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+
+
 def uv_binary() -> str:
-    uv = shutil.which("uv")
+    """uv from PATH, else the bundled one, else install it."""
+    uv = shutil.which("uv") or _bundled_uv() or install_uv()
     if not uv:
         raise WaftError(
-            "uv is not installed; see "
+            "uv is required but could not be installed automatically; "
+            "install it with 'pipx install uv' or see "
             "https://docs.astral.sh/uv/getting-started/installation/"
         )
     return uv
+
+
+def apt_install(packages: list[str], ppa: str | None = None) -> bool:
+    """Install system packages with apt-get; True when it succeeded.
+
+    Uses sudo unless already root, so this may prompt for a password.
+    """
+    if shutil.which("apt-get") is None:
+        return False
+    root = getattr(os, "geteuid", lambda: 1)() == 0
+    sudo: list[str] = []
+    if not root:
+        if shutil.which("sudo") is None:
+            return False
+        sudo = ["sudo"]
+    steps = []
+    if ppa and shutil.which("add-apt-repository"):
+        steps.append([*sudo, "add-apt-repository", "-y", ppa])
+    steps.append([*sudo, "apt-get", "update"])
+    steps.append([*sudo, "apt-get", "install", "-y", *packages])
+    for cmd in steps:
+        print(f"+ {' '.join(cmd)}")
+        if subprocess.run(cmd, check=False).returncode != 0:
+            return False
+    return True
 
 
 def python_spec(info: versions.OdooVersion) -> tuple[str, bool]:
@@ -65,15 +134,29 @@ def python_spec(info: versions.OdooVersion) -> tuple[str, bool]:
 
 
 def system_python(binary: str) -> str:
+    """An old interpreter (python2.7 / python3.6) from the system.
+
+    Installed with apt when missing - first from the distribution, then from
+    the deadsnakes PPA, which carries interpreters Ubuntu has dropped.
+    """
     path = shutil.which(binary)
     if path:
         return path
+    print(f"{binary} not found; installing it in the system environment")
+    packages = [binary, f"{binary}-dev"]
+    for ppa in (None, "ppa:deadsnakes/ppa"):
+        if apt_install(packages, ppa=ppa):
+            path = shutil.which(binary)
+            if path:
+                return path
     raise WaftError(
-        f"{binary} is required for this Odoo version but was not found.\n"
-        f"Install it first, for example on Ubuntu:\n"
+        f"{binary} is required for Odoo {'.'.join(binary[len('python'):].split('.'))} "
+        f"but could not be installed automatically.\n"
+        f"Ubuntu may no longer package it; try:\n"
         f"    sudo add-apt-repository ppa:deadsnakes/ppa\n"
         f"    sudo apt update && sudo apt install {binary} {binary}-dev\n"
-        f"then re-run 'waft sync'."
+        f"or build it from source (for example with pyenv), then re-run "
+        f"'waft sync'."
     )
 
 
