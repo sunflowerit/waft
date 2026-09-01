@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..project import WaftError
+from . import odoo_conf
 
 #: Supported Odoo versions, oldest first.
 SUPPORTED_VERSIONS = [f"{major}.0" for major in range(8, 20)]
@@ -123,6 +124,7 @@ def config_defaults(version: str) -> dict[str, str]:
         "WAFT_DEPTH_MERGE": "100",
         "WAFT_GIT_AGGREGATOR": "git-aggregator",
         "WAFT_LOG_LEVEL": "INFO",
+        "WAFT_PYTHON": "",
         "WAFT_SERVICE_NAME": "odoo",
         "WAFT_UPGRADE_URL": "https://upgrade.odoo.com/upgrade",
     }
@@ -131,39 +133,14 @@ def config_defaults(version: str) -> dict[str, str]:
 def odoo_conf_template(version: str) -> dict[str, dict[str, str]]:
     """odoo.conf sections/keys for one Odoo version.
 
-    Values may reference configuration variables as ``${VAR}``; waft
-    substitutes them safely (a missing variable is a clear error, never a
-    raw KeyError). ``WAFT_*`` variables are computed by waft itself.
+    The full set of Odoo options, as shipped by the previous waft
+    implementation (see waft.versions.odoo_conf). Values may reference
+    configuration variables as ``${VAR}``; waft substitutes them safely (a
+    missing variable is a clear error, never a raw KeyError). ``WAFT_*``
+    variables are computed by waft itself.
     """
-    info = get(version)
-    options: dict[str, str] = {
-        "addons_path": "${WAFT_ADDONS_PATH}",
-        "admin_passwd": "${ODOO_ADMIN_PASSWORD}",
-        "data_dir": "${WAFT_DATA_DIR}",
-        "db_host": "${PGHOST}",
-        "db_name": "${PGDATABASE}",
-        "db_password": "${PGPASSWORD}",
-        "db_port": "${PGPORT}",
-        "db_template": info.db_template,
-        "db_user": "${PGUSER}",
-        "dbfilter": "${ODOO_DBFILTER}",
-        "lang": "${ODOO_INITIAL_LANG}",
-        "limit_memory_hard": "${ODOO_LIMIT_MEMORY_HARD}",
-        "limit_memory_soft": "${ODOO_LIMIT_MEMORY_SOFT}",
-        "list_db": "${ODOO_LIST_DB}",
-        "max_cron_threads": "${ODOO_MAX_CRON_THREADS}",
-        "unaccent": "${ODOO_UNACCENT}",
-        "without_demo": "${ODOO_WITHOUT_DEMO}",
-        "workers": "${ODOO_WORKERS}",
+    get(version)  # validate
+    return {
+        "options": dict(odoo_conf.OPTIONS[str(version)]),
+        "queue_job": dict(odoo_conf.QUEUE_JOB),
     }
-    if info.uses_gevent:
-        options["gevent_port"] = "8072"
-    else:
-        options["longpolling_port"] = "8072"
-    queue_job = {
-        "channels": "${QUEUE_JOB_CHANNELS}",
-        "scheme": "${QUEUE_JOB_SCHEME}",
-        "host": "${QUEUE_JOB_HOST}",
-        "port": "${QUEUE_JOB_PORT}",
-    }
-    return {"options": options, "queue_job": queue_job}

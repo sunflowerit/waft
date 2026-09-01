@@ -87,14 +87,74 @@ def test_ensure_venv_python2_installs_from_apt(tmp_path, calls, monkeypatch):
     assert any("virtualenv" in " ".join(call) for call in calls)
 
 
-def test_ensure_venv_python2_unavailable(tmp_path, calls, monkeypatch):
+def test_ensure_venv_python2_builds_with_pyenv(tmp_path, calls, monkeypatch):
+    """No apt package: waft builds the interpreter with pyenv."""
     project = init_project(tmp_path, "8.0")
+    root = tmp_path / "pyenv"
+    monkeypatch.setenv("PYENV_ROOT", str(root))
     monkeypatch.setattr(
         venv_mod.shutil,
         "which",
-        lambda name: "/usr/bin/uv" if name == "uv" else None,
+        lambda name: "/usr/bin/uv" if name in ("uv", "git") else None,
     )
-    with pytest.raises(WaftError, match="could not be installed automatically"):
+
+    def fake_run(cmd, check=True, **kwargs):
+        cmd = [str(part) for part in cmd]
+        calls.append(cmd)
+        if "install" in cmd and cmd[-1] == "2.7.18":
+            built = root / "versions" / "2.7.18" / "bin"
+            built.mkdir(parents=True)
+            (built / "python2.7").touch()
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(venv_mod.subprocess, "run", fake_run)
+    assert venv_mod.ensure_venv(project) is True
+    assert any(cmd[:2] == ["git", "clone"] for cmd in calls)  # pyenv cloned
+    assert any(cmd[-3:] == ["install", "-s", "2.7.18"] for cmd in calls)
+    virtualenv = next(cmd for cmd in calls if "virtualenv" in " ".join(cmd))
+    assert str(root / "versions" / "2.7.18" / "bin" / "python2.7") in virtualenv
+
+
+def test_ensure_venv_python2_unavailable(tmp_path, calls, monkeypatch):
+    project = init_project(tmp_path, "8.0")
+    monkeypatch.setenv("PYENV_ROOT", str(tmp_path / "pyenv"))
+    monkeypatch.setattr(
+        venv_mod.shutil,
+        "which",
+        lambda name: "/usr/bin/uv" if name in ("uv", "git") else None,
+    )
+
+    def failing_run(cmd, check=True, **kwargs):
+        cmd = [str(part) for part in cmd]
+        calls.append(cmd)
+        code = 1 if "install" in cmd else 0  # the pyenv build fails
+        return subprocess.CompletedProcess(cmd, code, stdout="")
+
+    monkeypatch.setattr(venv_mod.subprocess, "run", failing_run)
+    with pytest.raises(WaftError, match="the pyenv build failed") as exc:
+        venv_mod.ensure_venv(project)
+    assert "OpenSSL 3" in str(exc.value)  # the 2.7 specific hint
+    assert "WAFT_PYTHON=" in str(exc.value)
+
+
+def test_waft_python_override(tmp_path, calls, have_uv):
+    project = init_project(tmp_path, "8.0")
+    interpreter = tmp_path / "custom" / "python2.7"
+    interpreter.parent.mkdir()
+    interpreter.touch()
+    from waft import config
+
+    config.config_set(project, f"WAFT_PYTHON={interpreter}")
+    assert venv_mod.ensure_venv(project) is True
+    assert str(interpreter) in calls[0]
+
+
+def test_waft_python_override_missing(tmp_path, calls, have_uv):
+    project = init_project(tmp_path, "8.0")
+    from waft import config
+
+    config.config_set(project, "WAFT_PYTHON=/nope/python2.7")
+    with pytest.raises(WaftError, match="which does not exist"):
         venv_mod.ensure_venv(project)
 
 

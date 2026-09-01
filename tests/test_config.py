@@ -50,6 +50,42 @@ def test_odoo_conf_longpolling_for_old_versions(tmp_path):
     assert "gevent_port" not in text
 
 
+def test_odoo_conf_has_the_full_option_set(project):
+    """odoo.conf carries every default option, as the old templates did."""
+    text = project.odoo_conf.read_text()
+    keys = {line.split("=")[0].strip() for line in text.splitlines() if "=" in line}
+    # a spread of options that only exist in the full set
+    for key in (
+        "csv_internal_sep",
+        "db_maxconn",
+        "db_sslmode",
+        "limit_request",
+        "limit_time_cpu",
+        "log_handler",
+        "log_level",
+        "proxy_mode",
+        "server_wide_modules",
+        "smtp_server",
+        "test_enable",
+        "transient_age_limit",
+    ):
+        assert key in keys, key
+    assert len(keys) > 50
+    # long values survive the generator's line wrapping intact
+    assert (
+        "log_handler = :INFO,werkzeug:WARN,openerp.service.server:INFO,"
+        "longpolling:WARN" in text
+    )
+
+
+@pytest.mark.parametrize("version", ["8.0", "13.0", "16.0", "18.0", "19.0"])
+def test_every_version_renders(tmp_path, version):
+    project = init_project(tmp_path / version, version, db_name="db")
+    text = project.odoo_conf.read_text()
+    assert "${" not in text  # all variables substituted
+    assert "[options]" in text and "[queue_job]" in text
+
+
 def test_substitute_missing_variable():
     with pytest.raises(WaftError) as exc:
         config.substitute("x=${NOPE}", {"OK": "1"}, "test source")

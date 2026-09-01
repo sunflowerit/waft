@@ -4,10 +4,11 @@ Odoo 14.0+ (Python >= 3.8): uv creates the venv and installs the Python
 interpreter (https://docs.astral.sh/uv).
 
 Odoo 8.0-13.0 (Python 2.7 / 3.6): uv cannot install interpreters that old.
-Waft needs a matching system binary (python2.7 / python3.6) and creates the
-venv with a pinned virtualenv==20.15.1 - the last release able to create
-Python 2.7 and 3.6 environments - executed via "uv tool run" so nothing is
-installed globally.
+Waft looks for a matching binary (WAFT_PYTHON, then PATH), installs one with
+apt when it can (distribution, then the deadsnakes PPA) and otherwise builds
+it from source with pyenv. The venv is then created with a pinned
+virtualenv==20.15.1 - the last release able to create Python 2.7 and 3.6
+environments - executed via "uv tool run" so nothing is installed globally.
 
 uv itself is a dependency of the waft package, so "pipx install waft"
 already provides it; waft prefers a uv found on PATH and falls back to the
@@ -33,6 +34,27 @@ VIRTUALENV_PIN = "virtualenv==20.15.1"
 
 #: Minimum Python 3 minor version installable by uv (python-build-standalone).
 _UV_MIN_PY3_MINOR = 7
+
+PYENV_REPO = "https://github.com/pyenv/pyenv.git"
+
+#: What pyenv needs to build CPython on Ubuntu (pyenv's own wiki list).
+PYENV_BUILD_DEPS = [
+    "build-essential",
+    "curl",
+    "libbz2-dev",
+    "libffi-dev",
+    "liblzma-dev",
+    "libncursesw5-dev",
+    "libreadline-dev",
+    "libsqlite3-dev",
+    "libssl-dev",
+    "libxml2-dev",
+    "libxmlsec1-dev",
+    "make",
+    "tk-dev",
+    "xz-utils",
+    "zlib1g-dev",
+]
 
 
 def _run(cmd: list, **kwargs) -> subprocess.CompletedProcess:
@@ -133,30 +155,89 @@ def python_spec(info: versions.OdooVersion) -> tuple[str, bool]:
     return f"python{major}.{minor}", False
 
 
-def system_python(binary: str) -> str:
-    """An old interpreter (python2.7 / python3.6) from the system.
+def pyenv_root() -> Path:
+    """Where pyenv lives; shared between projects, PYENV_ROOT wins."""
+    root = os.environ.get("PYENV_ROOT")
+    return Path(root) if root else Path.home() / ".pyenv"
 
-    Installed with apt when missing - first from the distribution, then from
-    the deadsnakes PPA, which carries interpreters Ubuntu has dropped.
+
+def ensure_pyenv() -> Path:
+    """pyenv from PATH or PYENV_ROOT, cloned when absent."""
+    existing = shutil.which("pyenv")
+    if existing:
+        return Path(existing)
+    binary = pyenv_root() / "bin" / "pyenv"
+    if binary.is_file():
+        return binary
+    print(f"installing pyenv into {pyenv_root()}")
+    _run(["git", "clone", "--depth", "1", PYENV_REPO, str(pyenv_root())])
+    return binary
+
+
+def pyenv_install(info: versions.OdooVersion) -> str | None:
+    """Build the version's interpreter with pyenv; returns its path or None.
+
+    Building CPython needs development headers, so waft installs pyenv's
+    build dependencies with apt first (best effort - the build may still
+    succeed when they are already present).
     """
+    binary = ensure_pyenv()
+    apt_install(PYENV_BUILD_DEPS)
+    env = {**os.environ, "PYENV_ROOT": str(pyenv_root()), "CFLAGS": "-O2"}
+    cmd = [str(binary), "install", "-s", info.python_version]
+    print(f"+ {' '.join(cmd)}  (this compiles CPython and takes a while)")
+    if subprocess.run(cmd, env=env, check=False).returncode != 0:
+        return None
+    built = pyenv_root() / "versions" / info.python_version / "bin"
+    major, minor = info.python_version.split(".")[:2]
+    for name in (f"python{major}.{minor}", f"python{major}", "python"):
+        candidate = built / name
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def legacy_python(info: versions.OdooVersion, cfg: dict[str, str]) -> str:
+    """An old interpreter (python2.7 / python3.6) for Odoo 8.0-13.0.
+
+    In order: an explicit WAFT_PYTHON, then PATH, then apt (distribution,
+    then the deadsnakes PPA, which carries interpreters Ubuntu has dropped),
+    then a pyenv build from source.
+    """
+    override = cfg.get("WAFT_PYTHON", "")
+    if override:
+        if not Path(override).is_file():
+            raise WaftError(f"WAFT_PYTHON is set to {override}, which does not exist")
+        return override
+    major, minor = info.python_version.split(".")[:2]
+    binary = f"python{major}.{minor}"
     path = shutil.which(binary)
     if path:
         return path
     print(f"{binary} not found; installing it in the system environment")
-    packages = [binary, f"{binary}-dev"]
     for ppa in (None, "ppa:deadsnakes/ppa"):
-        if apt_install(packages, ppa=ppa):
+        if apt_install([binary, f"{binary}-dev"], ppa=ppa):
             path = shutil.which(binary)
             if path:
                 return path
+    print(f"apt cannot provide {binary}; falling back to building it with pyenv")
+    built = pyenv_install(info)
+    if built:
+        return built
+    hint = ""
+    if major == "2":
+        hint = (
+            "\nPython 2.7 does not build against OpenSSL 3, which modern Ubuntu "
+            "ships; building it usually needs OpenSSL 1.1 headers, e.g.\n"
+            "    PYTHON_CONFIGURE_OPTS=--with-openssl=/path/to/openssl-1.1 "
+            f"pyenv install {info.python_version}\n"
+        )
     raise WaftError(
-        f"{binary} is required for Odoo {'.'.join(binary[len('python'):].split('.'))} "
-        f"but could not be installed automatically.\n"
-        f"Ubuntu may no longer package it; try:\n"
-        f"    sudo add-apt-repository ppa:deadsnakes/ppa\n"
-        f"    sudo apt update && sudo apt install {binary} {binary}-dev\n"
-        f"or build it from source (for example with pyenv), then re-run "
-        f"'waft sync'."
+        f"{binary} is required for Odoo {info.name} but could not be installed: "
+        f"apt has no package for it and the pyenv build failed.{hint}"
+        f"Install the interpreter yourself and point waft at it:\n"
+        f"    waft odoo config set WAFT_PYTHON=/path/to/{binary}\n"
+        f"then re-run 'waft sync'."
     )
 
 
@@ -178,7 +259,7 @@ def ensure_venv(project: Project, cfg: dict[str, str] | None = None) -> bool:
     if managed:
         _run([uv_binary(), "venv", "--python", spec, project.venv_dir])
     else:
-        binary = system_python(spec)
+        binary = legacy_python(info, cfg)
         _run(
             [
                 uv_binary(),
