@@ -35,6 +35,27 @@ VIRTUALENV_PIN = "virtualenv==20.15.1"
 #: Minimum Python 3 minor version installable by uv (python-build-standalone).
 _UV_MIN_PY3_MINOR = 7
 
+#: System packages Odoo's Python dependencies need to compile (python-ldap,
+#: lxml, Pillow, psycopg2, cryptography). Installed only after a pip failure,
+#: so a machine that already has them is never touched.
+ODOO_BUILD_APT = [
+    "build-essential",
+    "libffi-dev",
+    "libfreetype6-dev",
+    "libjpeg-dev",
+    "liblcms2-dev",
+    "libldap2-dev",
+    "libopenjp2-7-dev",
+    "libpq-dev",
+    "libsasl2-dev",
+    "libssl-dev",
+    "libwebp-dev",
+    "libxml2-dev",
+    "libxslt1-dev",
+    "pkg-config",
+    "zlib1g-dev",
+]
+
 PYENV_REPO = "https://github.com/pyenv/pyenv.git"
 
 #: What pyenv needs to build CPython on Ubuntu (pyenv's own wiki list).
@@ -300,6 +321,24 @@ def run_pip(project: Project, cfg: dict[str, str], args: list[str]) -> None:
     _run(_pip_command(project, info, list(args)))
 
 
+def pip_with_build_deps(project: Project, cfg: dict[str, str], args: list[str]) -> None:
+    """pip, retried once after installing Odoo's build dependencies.
+
+    Odoo pins packages with C extensions (python-ldap, lxml, Pillow,
+    psycopg2); when a wheel is unavailable they need system headers.
+    """
+    try:
+        run_pip(project, cfg, args)
+    except WaftError:
+        print(
+            "pip failed - installing Odoo's build dependencies in the system "
+            "environment and retrying"
+        )
+        if not apt_install(ODOO_BUILD_APT):
+            raise
+        run_pip(project, cfg, args)
+
+
 def pip(project: Project, args: list[str]) -> int:
     """`waft pip {pip options}`."""
     if not args:
@@ -320,21 +359,33 @@ def default_requirements(info: versions.OdooVersion) -> Path | None:
 
 
 def update_requirements(project: Project, cfg: dict[str, str] | None = None) -> int:
-    """Install the setuptools pin, per-version defaults, then project extras.
+    """Install everything the Odoo installation needs, in order.
 
-    Order (mirrors the old waftlib build script):
-    1. setuptools pin for the Odoo version (waft.versions data);
-    2. per-version pinned defaults shipped inside waft, when present;
-    3. the project's own requirements.txt on top.
+    1. the setuptools pin for the Odoo version (waft.versions data);
+    2. the requirements.txt of the Odoo checkout - the authoritative,
+       branch-specific dependency list, since Odoo itself is installed with
+       --no-deps (run 'waft sync' first if the checkout is missing);
+    3. per-version pinned defaults shipped inside waft, when present;
+    4. the project's own requirements.txt on top.
     """
     cfg = cfg if cfg is not None else config_mod.load_config(project)
     ensure_venv(project, cfg)
     info = versions.get(cfg["ODOO_VERSION"])
     if info.setuptools:
         run_pip(project, cfg, ["install", f"setuptools{info.setuptools}"])
+    odoo_requirements = project.odoo_dir / "requirements.txt"
+    if odoo_requirements.is_file():
+        pip_with_build_deps(project, cfg, ["install", "-r", str(odoo_requirements)])
+    else:
+        print(
+            f"note: {odoo_requirements} not found; Odoo's own dependencies are "
+            "installed once the source is checked out"
+        )
     defaults = default_requirements(info)
     if defaults is not None:
         run_pip(project, cfg, ["install", "-r", str(defaults)])
     if project.requirements_txt.is_file():
-        run_pip(project, cfg, ["install", "-r", str(project.requirements_txt)])
+        pip_with_build_deps(
+            project, cfg, ["install", "-r", str(project.requirements_txt)]
+        )
     return 0

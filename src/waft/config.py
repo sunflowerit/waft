@@ -138,7 +138,8 @@ def generate_odoo_conf(project: Project, config: dict[str, str] | None = None) -
     return project.odoo_conf
 
 
-def _dump_yaml_vars(path: Path, data: dict[str, str]) -> None:
+def _dump_yaml_mapping(path: Path, data: dict) -> None:
+    """Write a config file back, structured keys (ADDONS) included."""
     path.parent.mkdir(parents=True, exist_ok=True)
     text = yaml.safe_dump(data, default_flow_style=False, sort_keys=True)
     path.write_text(text, encoding="utf-8")
@@ -153,9 +154,15 @@ def config_set(project: Project, assignment: str) -> Path:
     if not _VAR_NAME.match(var):
         raise WaftError(f"invalid variable name {var!r}")
     target = project.secret_yml if var in SECRET_VARS else project.shared_yml
-    data = load_yaml_vars(target)
+    data = load_yaml_mapping(target)
+    if isinstance(data.get(var), (dict, list)):
+        raise WaftError(
+            f"{var} is a structured setting, not a variable; "
+            "edit it with the matching command (e.g. 'waft odoo addon') "
+            f"or in {target} directly"
+        )
     data[var] = value
-    _dump_yaml_vars(target, data)
+    _dump_yaml_mapping(target, data)
     generate_odoo_conf(project)
     return target
 
@@ -164,11 +171,17 @@ def config_remove(project: Project, var: str) -> list[Path]:
     """``waft odoo config remove VAR``: remove from config files."""
     removed: list[Path] = []
     for path in (project.shared_yml, project.secret_yml):
-        data = load_yaml_vars(path)
-        if var in data:
-            del data[var]
-            _dump_yaml_vars(path, data)
-            removed.append(path)
+        data = load_yaml_mapping(path)
+        if var not in data:
+            continue
+        if isinstance(data[var], (dict, list)):
+            raise WaftError(
+                f"{var} is a structured setting, not a variable; "
+                "remove it with the matching command (e.g. 'waft odoo addon')"
+            )
+        del data[var]
+        _dump_yaml_mapping(path, data)
+        removed.append(path)
     if not removed:
         raise WaftError(f"variable {var!r} not found in shared.yml or secret.yml")
     generate_odoo_conf(project)

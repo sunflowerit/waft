@@ -87,6 +87,10 @@ def test_migration_from_format_1(tmp_path):
     (project.data_dir / "odoo-installed").parent.mkdir(parents=True, exist_ok=True)
     (project.data_dir / "odoo-installed").write_text("deadbeef\n")
     (project.addons_dir / "gone").symlink_to("../.tmp/repos/x/gone")
+    # a link that is still valid when migration 4 runs, but breaks once
+    # migration 5 moves the repository out of .tmp/repos
+    (project.tmp_dir / "repos" / "oca-web" / "web_a").mkdir(parents=True)
+    (project.addons_dir / "web_a").symlink_to("../.tmp/repos/oca-web/web_a")
 
     applied = apply_migrations(project)
     assert applied == [2, 3, 4, 5]
@@ -95,6 +99,8 @@ def test_migration_from_format_1(tmp_path):
     # the editable install pointed at the old path
     assert not (project.data_dir / "odoo-installed").exists()
     assert not (project.addons_dir / "gone").is_symlink()  # dangling link removed
+    assert (project.addons_dir / "oca-web" / "web_a").is_dir()  # repo moved
+    assert not (project.addons_dir / "web_a").is_symlink()  # link broken by the move
     gitignore = project.gitignore.read_text().splitlines()
     assert "/addons/odoo/" in gitignore
     assert "/odoo/" not in gitignore and ".src/" not in gitignore

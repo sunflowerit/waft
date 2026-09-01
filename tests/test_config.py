@@ -131,6 +131,28 @@ def test_config_list_masks_secrets(project):
     assert listed["ODOO_ADMIN_PASSWORD"] == ""  # empty secrets stay visible
 
 
+def test_config_set_preserves_structured_keys(project):
+    """Setting a variable must not drop the ADDONS block (regression)."""
+    from waft import addons
+
+    addons.addon_add(project, "oca-web", {"url": "https://x/web.git"})
+    config.config_set(project, "ODOO_WORKERS=4")
+    assert "oca-web" in addons.load_entries(project)
+    config.config_set(project, "PGPASSWORD=secret")  # goes to secret.yml
+    config.config_remove(project, "ODOO_WORKERS")
+    assert "oca-web" in addons.load_entries(project)
+
+
+def test_config_set_refuses_structured_keys(project):
+    from waft import addons
+
+    addons.addon_add(project, "oca-web", {"url": "https://x/web.git"})
+    with pytest.raises(WaftError, match="structured setting"):
+        config.config_set(project, "ADDONS=nope")
+    with pytest.raises(WaftError, match="structured setting"):
+        config.config_remove(project, "ADDONS")
+
+
 def test_config_test_ok(project):
     assert config.config_test(project) == []
 

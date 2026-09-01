@@ -267,10 +267,64 @@ def test_pip_py2_uses_venv_pip(tmp_path, calls, have_uv):
 
 def test_update_requirements_sequence(project, calls, have_uv):
     _fake_venv(project)
+    odoo_requirements = project.odoo_dir / "requirements.txt"
+    odoo_requirements.parent.mkdir(parents=True)
+    odoo_requirements.write_text("Babel==2.9.1\n")
     venv_mod.update_requirements(project)
-    # 16.0: setuptools pin first, project requirements.txt last.
+    # setuptools pin, then Odoo's own dependencies, then the project's
     assert "setuptools>=64,<82" in calls[0]
+    assert calls[1][-2:] == ["-r", str(odoo_requirements)]
     assert calls[-1][-2:] == ["-r", str(project.requirements_txt)]
+
+
+def test_pip_retries_after_installing_build_deps(project, monkeypatch, capsys):
+    """A C-extension build failure triggers apt, then one retry."""
+    _fake_venv(project)
+    attempts = []
+    monkeypatch.setattr(venv_mod.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(venv_mod.os, "geteuid", lambda: 0, raising=False)
+
+    def fake_run(cmd, check=True, **kwargs):
+        cmd = [str(part) for part in cmd]
+        attempts.append(cmd)
+        pip_installs = [c for c in attempts if "pip" in c and "install" in c]
+        if "pip" in cmd and len(pip_installs) == 1:  # first pip attempt fails
+            raise subprocess.CalledProcessError(1, cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(venv_mod.subprocess, "run", fake_run)
+    from waft.config import load_config
+
+    venv_mod.pip_with_build_deps(project, load_config(project), ["install", "x"])
+    assert any("apt-get" in call and "install" in call for call in attempts)
+    assert any("libldap2-dev" in call for call in attempts)
+    assert len([c for c in attempts if "pip" in c and "install" in c]) == 2
+
+
+def test_pip_reraises_when_apt_unavailable(project, monkeypatch):
+    _fake_venv(project)
+    monkeypatch.setattr(
+        venv_mod.shutil,
+        "which",
+        lambda name: "/usr/bin/uv" if name == "uv" else None,  # no apt-get
+    )
+
+    def failing(cmd, check=True, **kwargs):
+        raise subprocess.CalledProcessError(1, cmd)
+
+    monkeypatch.setattr(venv_mod.subprocess, "run", failing)
+    from waft.config import load_config
+
+    with pytest.raises(WaftError, match="command failed"):
+        venv_mod.pip_with_build_deps(project, load_config(project), ["install", "x"])
+
+
+def test_update_requirements_without_checkout(project, calls, have_uv, capsys):
+    """Odoo's dependencies come from its checkout; warn when it is absent."""
+    _fake_venv(project)
+    venv_mod.update_requirements(project)
+    assert not any("addons/odoo/requirements.txt" in " ".join(c) for c in calls)
+    assert "not found" in capsys.readouterr().out
 
 
 def test_update_requirements_no_setuptools_pin_for_19(tmp_path, calls, have_uv):

@@ -98,6 +98,25 @@ def test_sync(tmp_path, capsys, monkeypatch):
     assert "regenerated" in out
     assert "created virtual environment" in out
     assert "installed Odoo" in out
+    assert "addons: (none declared)" in out
+
+
+def test_sync_order_source_before_requirements(tmp_path, capsys, monkeypatch):
+    """Odoo's requirements.txt only exists after the checkout, so it wins."""
+    run(capsys, "-d", str(tmp_path), "init", "--odoo-version", "16.0")
+    order = []
+    monkeypatch.setattr("waft.venv.ensure_venv", lambda project, cfg=None: True)
+    monkeypatch.setattr(
+        "waft.source.ensure_odoo_source",
+        lambda project, cfg: order.append("source"),
+    )
+    monkeypatch.setattr(
+        "waft.venv.update_requirements",
+        lambda project, cfg=None: order.append("requirements"),
+    )
+    monkeypatch.setattr("waft.source.install_odoo", lambda project, cfg: True)
+    run(capsys, "-d", str(tmp_path), "sync")
+    assert order == ["source", "requirements"]
 
 
 def test_pip_without_venv_fails(tmp_path, capsys):

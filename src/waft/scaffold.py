@@ -236,6 +236,11 @@ def _migration_5(project: Project) -> None:
             if link.is_symlink():
                 link.unlink()
         state.unlink()
+    # Whatever the bookkeeping said, links into the old locations are broken now.
+    if project.addons_dir.is_dir():
+        for child in project.addons_dir.iterdir():
+            if child.is_symlink() and not child.exists():
+                child.unlink()
     # Translate the old ADDONS schema (kind:) into install types.
     for path in (project.shared_yml, project.secret_yml):
         mapping = config.load_yaml_mapping(path)
@@ -309,18 +314,22 @@ def sync(project: Project) -> int:
         print(f"created virtual environment {project.venv_dir}")
     else:
         print(f"virtual environment {project.venv_dir} is up to date")
-    venv_mod.update_requirements(project, cfg)
+    # The Odoo checkout comes first: its requirements.txt is what the
+    # dependency installation below is based on.
     source.ensure_odoo_source(project, cfg)
+    venv_mod.update_requirements(project, cfg)
     if source.install_odoo(project, cfg):
         print("installed Odoo into the virtual environment")
     else:
         print("Odoo installation is up to date")
+    # Generate now, so a usable configuration survives a later addon failure.
+    config.generate_odoo_conf(project)
     from . import addons as addons_mod
 
     done = addons_mod.converge(project, cfg)
     print(f"addons: {', '.join(done) if done else '(none declared)'}")
-    # The addons path depends on the declared source addons, so the Odoo
-    # configuration is generated once everything is on disk.
+    # The addons path depends on the declared source addons, so generate
+    # again once everything is on disk.
     config.generate_odoo_conf(project)
     print(f"regenerated {project.odoo_conf}")
     return 0
